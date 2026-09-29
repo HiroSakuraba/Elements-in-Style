@@ -2,7 +2,7 @@
 
 An interactive periodic table laid out as a spiral, with a pulsing electron-orbital viewer and a full set of statistics for all 118 elements.
 
-**Live site:** https://hirosakuraba.github.io/elements-in-style/
+**Live site:** https://hirosakuraba.github.io/Elements-in-Style/
 
 ## What it does
 
@@ -70,4 +70,4 @@ tools/build.py
 .nojekyll               tells GitHub Pages to serve files as-is
 ```
 
-By Benjamin John Schulz.
+By Benjamin John Schulz. Released under the MIT License (see `LICENSE`).
