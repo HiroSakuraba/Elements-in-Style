@@ -1,0 +1,922 @@
+<title>Periodic Spiral</title>
+<meta name="description" content="An interactive spiral periodic table with a pulsing 3D electron-orbital viewer and full element statistics.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Questrial&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one winding spiral chart on the left, an instrument column on the right (orbital well + stat drawers). Stacks on phones. */
+:root {
+  --bg: #0e1116;
+  --bg-2: #151a21;
+  --ink: #e7ebf0;
+  --ink-2: #9aa5b3;
+  --ink-3: #5f6b79;
+  --rule: #252c36;
+  --accent: #7fd6ff;
+  --tile-s: 42%;
+  --tile-l: 30%;
+  --tile-ink: #eef2f6;
+  --well: #05070a;
+  --f-display: "Questrial", "Century Gothic", "Avenir Next", "Helvetica Neue", sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #4c5663; --ink-3: #8a929c; --rule: #d3d7d0;
+    --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #4c5663; --ink-3: #8a929c; --rule: #d3d7d0;
+  --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font: 15px/1.5 var(--f-body); margin: 0; padding-inline: 16px; padding-block: 18px 40px; }
+.wrap { max-width: 1480px; margin: 0 auto; }
+header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--rule); padding-bottom: 14px; }
+h1 { font: 400 clamp(26px, 3.4vw, 40px)/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.sub { color: var(--ink-2); margin: 6px 0 0; max-width: 62ch; font-size: 14px; }
+.picker { display: flex; gap: 8px; align-items: center; }
+.picker label { font: 500 11px var(--f-data); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+select, button { font: inherit; color: var(--ink); background: var(--bg-2); border: 1px solid var(--rule); border-radius: 6px; }
+select { padding: 7px 10px; max-width: 220px; }
+button { padding: 6px 11px; cursor: pointer; font-size: 13px; }
+button:hover { border-color: var(--ink-3); }
+button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+main.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 440px); gap: 28px; margin-top: 18px; align-items: start; }
+.chart { min-width: 0; position: relative; }
+.chart-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.hint { color: var(--ink-3); font-size: 12px; font-family: var(--f-data); }
+.svgbox { position: relative; border-radius: 12px; background: radial-gradient(circle at 50% 50%, var(--bg-2), var(--bg) 70%); touch-action: none; overflow: hidden; }
+#spiral { display: block; width: 100%; height: auto; max-height: 84vh; cursor: grab; user-select: none; }
+#spiral.dragging { cursor: grabbing; }
+.tile path { stroke: var(--bg); stroke-width: 1.4; transition: opacity .35s; }
+.tile text { fill: var(--tile-ink); pointer-events: none; font-family: var(--f-display); }
+.tile .z, .tile .m { font-family: var(--f-data); opacity: .8; }
+.tile { cursor: pointer; transition: opacity .35s; }
+.tile:hover path { filter: brightness(1.18); }
+.tile.dim { opacity: .22; }
+.tile.sel path { stroke: var(--accent); stroke-width: 2.6; }
+.track { fill: var(--ink); opacity: .04; }
+.glabel { fill: var(--ink-3); font: 11px var(--f-data); }
+.arclabel { fill: var(--ink-2); font: 12px var(--f-display); letter-spacing: .22em; }
+.leader { stroke: var(--ink-3); stroke-dasharray: 3 4; fill: none; }
+.centre text { fill: var(--ink-3); font: 10px var(--f-data); letter-spacing: .1em; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.legend button { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; padding: 4px 9px; }
+.sw { width: 11px; height: 11px; border-radius: 3px; background: hsl(var(--h) var(--tile-s) var(--tile-l)); border: 1px solid var(--ink-3); }
+.foot { color: var(--ink-3); font-size: 12px; margin-top: 10px; max-width: 80ch; }
+
+aside.panel { min-width: 0; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 24px); overflow: auto; padding-right: 2px; }
+.idcard { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: center; margin-bottom: 12px; }
+.bigsym { grid-row: span 3; width: 84px; height: 84px; border-radius: 12px; display: grid; place-items: center; background: hsl(var(--h) var(--tile-s) var(--tile-l)); color: var(--tile-ink); position: relative; }
+.bigsym b { font: 400 40px/1 var(--f-display); }
+.bigsym i { position: absolute; top: 6px; left: 8px; font: 12px var(--f-data); font-style: normal; opacity: .8; }
+.idcard h2 { font: 400 26px/1.1 var(--f-display); letter-spacing: .06em; margin: 0; }
+.idcard .meta { color: var(--ink-2); font-size: 13px; }
+.econf { font-family: var(--f-data); font-size: 13px; color: var(--ink); }
+
+.well { position: relative; aspect-ratio: 1; width: 100%; max-width: 100%; border-radius: 14px; background: var(--well); overflow: hidden; border: 1px solid var(--rule); }
+.well canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.well .ov { position: absolute; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+.well .ov.t { top: 10px; justify-content: space-between; align-items: flex-start; }
+.well .ov.b { bottom: 10px; }
+.well .ov > * { pointer-events: auto; }
+.well .tag { font: 11px var(--f-data); color: #9fb0c2; letter-spacing: .06em; }
+.well button { background: rgba(20,26,34,.72); color: #dbe4ee; border-color: #2a3542; font: 12px var(--f-data); padding: 4px 8px; }
+.well button[aria-pressed="true"] { color: #fff; border-color: #7fd6ff; }
+.chip { display: inline-flex; gap: 5px; align-items: center; }
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+.wellnote { color: var(--ink-3); font-size: 12px; margin: 6px 0 14px; }
+
+details { border-top: 1px solid var(--rule); }
+details:last-of-type { border-bottom: 1px solid var(--rule); }
+summary { list-style: none; cursor: pointer; padding: 11px 2px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font: 400 15px var(--f-display); letter-spacing: .12em; text-transform: uppercase; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; font-family: var(--f-data); color: var(--ink-3); }
+details[open] summary::after { content: "−"; }
+summary small { font: 12px var(--f-data); color: var(--ink-3); letter-spacing: 0; text-transform: none; margin-left: auto; }
+.body { padding: 0 2px 14px; }
+dl.kv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 5px 14px; margin: 0; }
+dl.kv dt { color: var(--ink-2); font-size: 13px; }
+dl.kv dd { margin: 0; font: 13px var(--f-data); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.na { color: var(--ink-3); }
+.note { color: var(--ink-2); font-size: 13px; margin: 10px 0 0; }
+.ies { display: grid; gap: 3px; margin-top: 10px; }
+.ies .r { display: grid; grid-template-columns: 34px 1fr 76px; gap: 8px; align-items: center; font: 12px var(--f-data); font-variant-numeric: tabular-nums; }
+.ies .bar { height: 8px; border-radius: 2px; background: var(--accent); opacity: .75; }
+.ies .jump { background: #ff9d6c; }
+.tablewrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--rule); border-radius: 8px; max-height: 360px; overflow-y: auto; }
+table { border-collapse: collapse; width: 100%; font: 12px var(--f-data); font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 8px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+th { position: sticky; top: 0; background: var(--bg-2); color: var(--ink-2); font-weight: 500; }
+tr.stable td:first-child { color: var(--accent); }
+.isohead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.boxes { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 10px; }
+.sub-b { display: grid; gap: 3px; justify-items: center; }
+.sub-b .cells { display: flex; }
+.sub-b .cell { width: 24px; height: 26px; border: 1px solid var(--ink-3); margin-left: -1px; display: grid; place-items: center; font: 13px/1 var(--f-data); color: var(--ink); }
+.sub-b span { font: 11px var(--f-data); color: var(--ink-2); }
+p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
+
+[hidden] { display: none !important; }
+.well canvas#slice { cursor: pointer; }
+@media (max-width: 980px) {
+  main.grid { grid-template-columns: minmax(0, 1fr); }
+  aside.panel { position: static; max-height: none; overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { .tile, .tile path { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Periodic Spiral</h1>
+      <p class="sub">Each turn of the spiral is one period, winding outward from hydrogen. Elements in the same group sit on the same ray. Pick an element to zoom in and watch its electron orbitals pulse.</p>
+    </div>
+    <div class="picker">
+      <label for="elSelect">Element</label>
+      <select id="elSelect"></select>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="chart" aria-label="Spiral periodic table">
+      <div class="chart-bar">
+        <span class="hint" id="chartHint">Scroll or pinch to zoom · drag to pan · ←/→ steps through Z</span>
+        <div style="display:flex;gap:6px">
+          <button id="zoomIn" aria-label="Zoom in">+</button>
+          <button id="zoomOut" aria-label="Zoom out">−</button>
+          <button id="resetView">Whole spiral</button>
+        </div>
+      </div>
+      <div class="svgbox"><svg id="spiral" role="group" aria-label="Elements arranged on a spiral"></svg></div>
+      <div class="legend" id="legend"></div>
+      <p class="foot">Lanthanides (La–Yb) and actinides (Ac–No) branch off between groups 2 and 3 into the two outer arcs. Lu and Lr sit in group 3, as in the IUPAC 2021 layout. Element data from the mendeleev database (NIST, NUBASE and CRC sources); values for elements past fermium are mostly predictions.</p>
+    </section>
+
+    <aside class="panel" aria-label="Selected element">
+      <div class="idcard" id="idcard"></div>
+      <div class="well" id="well">
+        <canvas id="orb" aria-label="3D electron orbital cloud" hidden></canvas>
+        <canvas id="slice" aria-label="Probability density slices of the occupied orbitals"></canvas>
+        <div class="ov t" id="ovTop">
+          <span class="tag" id="wellTag">PROBABILITY DENSITY |ψ|²</span>
+          <div style="display:flex;gap:6px">
+            <button id="modeSlice" aria-pressed="true">2D density</button>
+            <button id="modeCloud" aria-pressed="false">3D</button>
+            <button id="modeBohr" aria-pressed="false">Shells</button>
+            <button id="pulseBtn" aria-pressed="true">Pulse</button>
+          </div>
+        </div>
+        <div class="ov b" id="subChips" hidden></div>
+        <div class="ov b" id="sliceChips"></div>
+      </div>
+      <p class="wellnote" id="wellNote">Drag to rotate. Tap a subshell to isolate it. Lobes are hydrogen-like orbitals scaled by each subshell’s Slater effective charge. Distance from the nucleus is rescaled so the shells sit evenly spaced; filled inner shells are drawn dimmer. Bright and dark lobes have opposite wavefunction sign.</p>
+      <div id="stats"></div>
+    </aside>
+  </main>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script id="rad" type="application/json">__RAD__</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const EL = JSON.parse(document.getElementById('data').textContent);
+const byZ = z => EL[z - 1];
+const SERIES = {
+  'Alkali metals': 218, 'Alkaline earth metals': 196, 'Transition metals': 36, 'Lanthanides': 168,
+  'Actinides': 140, 'Poor metals': 100, 'Metalloids': 70, 'Nonmetals': 8, 'Halogens': 340, 'Noble gases': 268
+};
+const SERIES_LABEL = { 'Poor metals': 'Post-transition metals' };
+const SVGNS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('spiral');
+const fmt = (v, d = 3) => v == null ? null : (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('en-US') : +v.toPrecision(d) + '');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const SUP = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+const sup = s => String(s).replace(/\d/g, c => SUP[c]);
+
+/* ---------- spiral geometry ---------- */
+const R0 = 100, G = 1.22, STEP = 20;              // radius at hydrogen, growth per turn, degrees per group
+const rAt = t => R0 * Math.pow(G, t);
+const pt = (deg, r) => { const a = deg * Math.PI / 180; return [r * Math.sin(a), -r * Math.cos(a)]; };
+const FSTART = 40, FSTEP = 10;
+const RF = rAt(7.5) + 26, HF = 56, GAPF = 6;
+const isF = z => (z >= 57 && z <= 70) || (z >= 89 && z <= 102);
+const colOf = e => (e.Z === 71 || e.Z === 103) ? 2 : e.group - 1;
+
+function tileGeom(e) {
+  const pts = []; const N = 8;
+  if (isF(e.Z)) {
+    const i = e.Z <= 70 ? e.Z - 57 : e.Z - 89;
+    const r0 = e.Z <= 70 ? RF : RF + HF + GAPF, r1 = r0 + HF;
+    const a0 = FSTART + i * FSTEP, a1 = a0 + FSTEP;
+    for (let k = 0; k <= N; k++) pts.push(pt(a0 + (a1 - a0) * k / N, r0));
+    for (let k = N; k >= 0; k--) pts.push(pt(a0 + (a1 - a0) * k / N, r1));
+    const am = a0 + FSTEP / 2, rm = (r0 + r1) / 2;
+    return { pts, c: pt(am, rm), w: rm * FSTEP * Math.PI / 180, h: HF };
+  }
+  const c = colOf(e), p = e.period, a0 = c * STEP, a1 = a0 + STEP;
+  for (let k = 0; k <= N; k++) { const a = a0 + STEP * k / N; pts.push(pt(a, rAt(p - 1 + a / 360))); }
+  for (let k = N; k >= 0; k--) { const a = a0 + STEP * k / N; pts.push(pt(a, rAt(p + a / 360))); }
+  const am = a0 + STEP / 2, rin = rAt(p - 1 + am / 360), rout = rAt(p + am / 360);
+  return { pts, c: pt(am, (rin + rout) / 2), w: (rin + rout) / 2 * STEP * Math.PI / 180, h: rout - rin };
+}
+const pathD = pts => 'M' + pts.map(p => p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join('L') + 'Z';
+const mk = (tag, attrs, parent) => { const n = document.createElementNS(SVGNS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+
+let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+const grow = ([x, y]) => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); };
+
+// faint continuous ribbon behind the tiles
+const trackPts = [];
+for (let a = 0; a <= 7 * 360; a += 4) trackPts.push(pt(a, rAt(a / 360)));
+for (let a = 7 * 360; a >= 0; a -= 4) trackPts.push(pt(a, rAt(1 + a / 360)));
+mk('path', { d: pathD(trackPts), class: 'track' }, svg);
+// f-block arcs track + labels
+const defs = mk('defs', {}, svg);
+[[RF, 'LANTHANIDES · 57–70', 'arcL'], [RF + HF + GAPF, 'ACTINIDES · 89–102', 'arcA']].forEach(([r0, label, id]) => {
+  const a0 = FSTART, a1 = FSTART + 14 * FSTEP, rr = r0 + HF + (id === 'arcA' ? 16 : -HF - 8);
+  const s = pt(a0 + 2, rr), e2 = pt(a1 - 2, rr);
+  mk('path', { id, d: `M${s[0]} ${s[1]} A${rr} ${rr} 0 0 1 ${e2[0]} ${e2[1]}` }, defs);
+  const t = mk('text', { class: 'arclabel' }, svg);
+  const tp = mk('textPath', { href: '#' + id, startOffset: id === 'arcA' ? '4%' : '58%' }, t); tp.textContent = label;
+  grow(pt(a0, rr + 14)); grow(pt(a1, rr + 14)); grow(pt(90, rr + 14));
+});
+// leader from the Ba|Lu and Ra|Lr seam out to the arcs
+{
+  const r6 = rAt(5.5 + FSTART / 360), a = pt(FSTART, r6), b = pt(FSTART, RF + HF + GAPF);
+  mk('path', { class: 'leader', d: `M${a[0]} ${a[1]}L${b[0]} ${b[1]}` }, svg);
+  [5.5, 6.5].forEach(t => { const q = pt(FSTART, rAt(t + FSTART / 360)); mk('circle', { cx: q[0], cy: q[1], r: 3, fill: 'var(--ink-3)' }, svg); });
+}
+// group numbers just outside period 7
+for (let c = 0; c < 18; c++) {
+  const am = c * STEP + STEP / 2, q = pt(am, rAt(7 + am / 360) + 13);
+  const t = mk('text', { x: q[0], y: q[1] + 4, 'text-anchor': 'middle', class: 'glabel' }, svg); t.textContent = c + 1;
+}
+// centre label
+{ const g = mk('g', { class: 'centre' }, svg);
+  const t = mk('text', { x: 0, y: -4, 'text-anchor': 'middle' }, g); t.textContent = 'PERIOD 1';
+  const t2 = mk('text', { x: 0, y: 10, 'text-anchor': 'middle' }, g); t2.textContent = 'STARTS AT H ↑'; }
+
+const tiles = {};
+const tilesG = mk('g', {}, svg);
+EL.forEach(e => {
+  const g = tileGeom(e); e._g = g; g.pts.forEach(grow);
+  const grp = mk('g', { class: 'tile', tabindex: '0', role: 'button', 'aria-label': `${e.name}, ${e.Z}`, 'data-z': e.Z }, tilesG);
+  const h = SERIES[e.series] ?? 0;
+  grp.style.setProperty('--h', h);
+  mk('path', { d: pathD(g.pts), style: `fill:hsl(${h} var(--tile-s) var(--tile-l))` }, grp);
+  const s = Math.min(g.w, g.h);
+  const [cx, cy] = g.c;
+  const symSize = s * 0.42;
+  const hasName = g.w > 55 && g.h > 44;
+  const sym = mk('text', { x: cx, y: cy + symSize * 0.35 - (hasName ? s * 0.08 : 0), 'text-anchor': 'middle', 'font-size': symSize.toFixed(1) }, grp);
+  sym.textContent = e.sym;
+  const zt = mk('text', { x: cx, y: cy - s * 0.3 - (hasName ? s * 0.04 : 0), 'text-anchor': 'middle', 'font-size': (s * 0.17).toFixed(1), class: 'z' }, grp);
+  zt.textContent = e.Z;
+  if (hasName) {
+    const nt = mk('text', { x: cx, y: cy + s * 0.42, 'text-anchor': 'middle', 'font-size': Math.min(s * 0.13, g.w / (e.name.length * 0.62)).toFixed(1) }, grp);
+    nt.textContent = e.name;
+  }
+  const tt = mk('title', {}, grp); tt.textContent = `${e.Z} ${e.name}`;
+  tiles[e.Z] = grp;
+});
+const PAD = 26;
+const HOME = { x: minX - PAD, y: minY - PAD, w: maxX - minX + 2 * PAD, h: maxY - minY + 2 * PAD };
+let vb = { ...HOME };
+const setVB = v => { vb = v; svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`); };
+setVB(HOME);
+svg.style.aspectRatio = `${HOME.w} / ${HOME.h}`;
+
+/* ---------- view animation, zoom, pan ---------- */
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let anim = null;
+function animateTo(t, ms = 700) {
+  cancelAnimationFrame(anim);
+  if (reduce) { setVB(t); return; }
+  const f = { ...vb }, t0 = performance.now();
+  const step = now => {
+    const k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+    setVB({ x: f.x + (t.x - f.x) * e, y: f.y + (t.y - f.y) * e, w: f.w + (t.w - f.w) * e, h: f.h + (t.h - f.h) * e });
+    if (k < 1) anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+}
+function focusBox(e) {
+  const g = e._g, size = Math.max(g.w, g.h) * 4.2 + 60;
+  const w = Math.min(HOME.w, Math.max(size, 190)), h = w * HOME.h / HOME.w;
+  return { x: g.c[0] - w / 2, y: g.c[1] - h / 2, w, h };
+}
+function zoomAt(factor, cx, cy) {
+  const w = Math.min(HOME.w * 1.3, Math.max(60, vb.w * factor)), k = w / vb.w, h = vb.h * k;
+  setVB({ x: cx - (cx - vb.x) * k, y: cy - (cy - vb.y) * k, w, h });
+}
+const toSvg = (ev) => { const r = svg.getBoundingClientRect(); return [vb.x + (ev.clientX - r.left) / r.width * vb.w, vb.y + (ev.clientY - r.top) / r.height * vb.h]; };
+svg.addEventListener('wheel', ev => { ev.preventDefault(); cancelAnimationFrame(anim); const [x, y] = toSvg(ev); zoomAt(Math.exp(ev.deltaY * 0.0015), x, y); }, { passive: false });
+const pointers = new Map(); let dragMoved = false, pinch0 = null, lastP = null;
+svg.addEventListener('pointerdown', ev => {
+  pointers.set(ev.pointerId, ev); dragMoved = false; lastP = [ev.clientX, ev.clientY]; cancelAnimationFrame(anim);
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), vb: { ...vb } }; }
+});
+svg.addEventListener('pointermove', ev => {
+  if (!pointers.has(ev.pointerId)) return;
+  pointers.set(ev.pointerId, ev);
+  const r = svg.getBoundingClientRect();
+  if (pointers.size === 2 && pinch0) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+    const cx = vb.x + (mx - r.left) / r.width * vb.w, cy = vb.y + (my - r.top) / r.height * vb.h;
+    zoomAt((pinch0.d / d) * pinch0.vb.w / vb.w, cx, cy); dragMoved = true; return;
+  }
+  const dx = ev.clientX - lastP[0], dy = ev.clientY - lastP[1];
+  if (!dragMoved && Math.hypot(dx, dy) < 5) return;
+  if (!dragMoved) { dragMoved = true; svg.setPointerCapture(ev.pointerId); svg.classList.add('dragging'); }
+  lastP = [ev.clientX, ev.clientY];
+  setVB({ ...vb, x: vb.x - dx / r.width * vb.w, y: vb.y - dy / r.height * vb.h });
+});
+const endP = ev => { pointers.delete(ev.pointerId); if (pointers.size < 2) pinch0 = null; svg.classList.remove('dragging'); };
+svg.addEventListener('pointerup', ev => {
+  const wasDrag = dragMoved; endP(ev);
+  if (wasDrag) return;
+  const t = ev.target.closest && ev.target.closest('.tile');
+  if (t) select(+t.dataset.z, true);
+});
+svg.addEventListener('pointercancel', endP);
+svg.addEventListener('keydown', ev => { const t = ev.target.closest('.tile'); if (t && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); select(+t.dataset.z, true); } });
+document.getElementById('zoomIn').onclick = () => { const c = [vb.x + vb.w / 2, vb.y + vb.h / 2]; const t = { w: vb.w / 1.6, h: vb.h / 1.6 }; animateTo({ x: c[0] - t.w / 2, y: c[1] - t.h / 2, ...t }, 350); };
+document.getElementById('zoomOut').onclick = () => { const c = [vb.x + vb.w / 2, vb.y + vb.h / 2]; const w = Math.min(HOME.w * 1.3, vb.w * 1.6), h = w * vb.h / vb.w; animateTo({ x: c[0] - w / 2, y: c[1] - h / 2, w, h }, 350); };
+document.getElementById('resetView').onclick = () => { highlightSeries(null); animateTo(HOME); };
+
+/* ---------- series legend / highlight ---------- */
+let litSeries = null;
+function highlightSeries(s) {
+  litSeries = s;
+  EL.forEach(e => tiles[e.Z].classList.toggle('dim', !!s && e.series !== s));
+  legendBtns.forEach(b => b.setAttribute('aria-pressed', b.dataset.s === s ? 'true' : 'false'));
+}
+const legend = document.getElementById('legend');
+const legendBtns = Object.keys(SERIES).map(s => {
+  const b = document.createElement('button');
+  b.dataset.s = s; b.setAttribute('aria-pressed', 'false');
+  b.innerHTML = `<span class="sw" style="--h:${SERIES[s]}"></span>${SERIES_LABEL[s] || s}`;
+  b.onclick = () => highlightSeries(litSeries === s ? null : s);
+  legend.appendChild(b); return b;
+});
+
+/* ---------- element select ---------- */
+const selEl = document.getElementById('elSelect');
+EL.forEach(e => { const o = document.createElement('option'); o.value = e.Z; o.textContent = `${e.Z} · ${e.sym} · ${e.name}`; selEl.appendChild(o); });
+selEl.onchange = () => select(+selEl.value, true);
+document.addEventListener('keydown', ev => {
+  if (ev.target.matches('select, input, textarea')) return;
+  if (ev.key === 'ArrowRight' && current < 118) { ev.preventDefault(); select(current + 1, true); }
+  if (ev.key === 'ArrowLeft' && current > 1) { ev.preventDefault(); select(current - 1, true); }
+});
+
+/* ---------- stats panel ---------- */
+const idcard = document.getElementById('idcard'), stats = document.getElementById('stats');
+const openState = { overview: true, thermal: true, atomic: false, magnetic: true, isotopes: true, config: false, history: false };
+let showAllIso = false;
+const val = (v, unit = '', d) => v == null || v === '' ? '<span class="na">—</span>' : `${typeof v === 'number' ? fmt(v, d) : esc(v)}${unit ? ' ' + unit : ''}`;
+const temp = K => K == null ? '<span class="na">—</span>' : `${fmt(K, 5)} K <span class="na">(${(K - 273.15).toFixed(1)} °C)</span>`;
+const kv = rows => `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+const termHTML = m => { const t = m.term.match(/^(\d+)([A-Z]+|L\d+)(.+)$/); return t ? `<sup>${t[1]}</sup>${t[2]}<sub>${t[3]}</sub>${m.odd ? '°' : ''}` : esc(m.term); };
+const LCAP = { s: 2, p: 6, d: 10, f: 14 };
+
+function section(key, title, badge, inner) {
+  return `<details data-k="${key}" ${openState[key] ? 'open' : ''}><summary>${title}${badge ? `<small>${badge}</small>` : ''}</summary><div class="body">${inner}</div></details>`;
+}
+
+function renderStats(e) {
+  const h = SERIES[e.series] ?? 0;
+  idcard.innerHTML = `<div class="bigsym" style="--h:${h}"><i>${e.Z}</i><b>${e.sym}</b></div>
+    <h2>${esc(e.name)}</h2>
+    <div class="meta">${SERIES_LABEL[e.series] || e.series} · ${fmt(e.mass, 6)} u</div>
+    <div class="econf">${esc(e.econf.replace(/([spdf])(\d+)/g, (m, a, b) => a + sup(b)).replace(/([spdf])(?=\s|$)/g, '$1¹'))}</div>`;
+  const grp = e.Z === 71 || e.Z === 103 ? 3 : e.group;
+  const overview = kv([
+    ['Atomic number', e.Z], ['Standard atomic weight', val(e.mass, 'u', 7)],
+    ['Group · period · block', `${grp ?? 'f-block'} · ${e.period} · ${e.block}`],
+    ['Phase at 25 °C', val(e.phase)], ['Radioactive', e.radioactive ? 'Yes' : 'No'],
+    ['Crustal abundance', e.crust != null ? `${fmt(e.crust)} mg/kg` : '<span class="na">—</span>']
+  ]) + (e.desc ? `<p class="desc">${esc(e.desc)}</p>` : '');
+
+  const thermal = kv([
+    ['Melting point', temp(e.mp)], ['Boiling point', temp(e.bp)],
+    ['Density', val(e.density, e.phase === 'Gas' ? 'g/cm³ (gas)' : 'g/cm³')],
+    ['Specific heat', val(e.cp, 'J/(g·K)')], ['Thermal conductivity', val(e.k, 'W/(m·K)')],
+    ['Heat of fusion', val(e.fus, 'kJ/mol')], ['Heat of vaporization', val(e.vap, 'kJ/mol')],
+    ['Crystal structure', e.lattice ? `${esc(e.lattice)}${e.lat_c ? ` · a = ${e.lat_c} Å` : ''}` : '<span class="na">—</span>']
+  ]);
+
+  let ies = '';
+  if (e.ies.length) {
+    const mx = Math.log10(Math.max(...e.ies));
+    const mn = Math.log10(Math.min(...e.ies)) - 0.3;
+    ies = `<div class="ies" aria-label="Successive ionization energies, log scale">` + e.ies.map((v, i) => {
+      const jump = i > 0 && v / e.ies[i - 1] > 2.6;
+      return `<div class="r"><span>IE${i + 1}</span><div class="bar${jump ? ' jump' : ''}" style="width:${Math.max(3, (Math.log10(v) - mn) / (mx - mn) * 100)}%"></div><span>${fmt(v, 5)} eV</span></div>`;
+    }).join('') + `</div><p class="note">Successive ionization energies on a log scale. Orange marks a jump of more than 2.6× — the point where the next electron has to come out of a closed inner shell.</p>`;
+  }
+  const atomic = kv([
+    ['Atomic radius', val(e.radius, 'pm')], ['Covalent radius', val(e.cov, 'pm')], ['Van der Waals radius', val(e.vdw, 'pm')],
+    ['Electronegativity (Pauling)', val(e.en)], ['First ionization energy', val(e.ie1, 'eV', 5)],
+    ['Electron affinity', val(e.ea, 'eV', 4)], ['Main oxidation states', e.ox && e.ox.length ? e.ox.map(o => (o > 0 ? '+' : '') + o).join(', ') : '<span class="na">—</span>']
+  ]) + ies;
+
+  const m = e.mag;
+  const nucl = e.isotopes.filter(i => i[6] != null && (i[3] === 'stable' || (i[4] && i[4] > 3.15e7)));
+  const magnetic = kv([
+    ['Unpaired electrons', m.unpaired],
+    ['Ground term (Hund’s rules)', termHTML(m)],
+    ['Spin-only moment', `${m.muS} μ<sub>B</sub>`],
+    ['Landé g<sub>J</sub>', m.J === 0 ? '<span class="na">— (J = 0)</span>' : m.gJ],
+    ['Free-atom moment g<sub>J</sub>√J(J+1)', `${m.muJ} μ<sub>B</sub>`],
+    ['Bulk magnetic order', e.magnote ? esc(e.magnote) : '<span class="na">No long-range order</span>'],
+    ['Nuclear moments', nucl.length ? nucl.slice(0, 6).map(i => `<sup>${i[0]}</sup>${e.sym}: ${i[6] > 0 ? '+' : ''}${i[6]} μ<sub>N</sub>`).join('<br>') : '<span class="na">—</span>']
+  ]) + `<p class="note">Atomic values are for an isolated atom in its ground state; the term symbol is a Hund’s-rule estimate and a few elements (Ce, Th and some superheavies) break the rule. Nuclear magnetic moments come from measured g-factors, μ = g·I.</p>`;
+
+  const known = e.isotopes.length;
+  const list = showAllIso ? e.isotopes : e.isotopes.filter(i => i[3] === 'stable' || (i[4] != null && i[4] >= 1) || i[2]);
+  const shown = list.length ? list : e.isotopes;
+  const iso = `<div class="isohead">${kv([
+      ['Stable isotopes', e.stable || '<span class="na">none</span>'],
+      ['Known isotopes', known],
+      ['Longest-lived', e.longest ? `<sup>${e.longest[0]}</sup>${e.sym} · t½ ${esc(e.longest[1])}` : (e.stable ? '<span class="na">has stable isotopes</span>' : '<span class="na">—</span>')]
+    ])}</div>
+    <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span class="hint">${showAllIso ? 'All isotopes' : 'Stable, natural, and half-life ≥ 1 s'} · ${shown.length} shown</span>
+      <button id="isoToggle">${showAllIso ? 'Show notable only' : `Show all ${known}`}</button></div>
+    <div class="tablewrap"><table><thead><tr><th>Isotope</th><th>Mass (u)</th><th>Abund. %</th><th>Half-life</th><th>Spin</th><th>μ (μ<sub>N</sub>)</th><th>Decay</th></tr></thead><tbody>
+    ${shown.map(i => `<tr class="${i[3] === 'stable' ? 'stable' : ''}"><td><sup>${i[0]}</sup>${e.sym}</td><td>${i[1] ?? '—'}</td><td>${i[2] ?? '—'}</td><td>${esc(i[3] ?? 'unknown')}</td><td>${esc(i[5] || '—')}</td><td>${i[6] ?? '—'}</td><td>${esc(i[7] || (i[3] === 'stable' ? '' : '—'))}</td></tr>`).join('')}
+    </tbody></table></div>`;
+
+  // orbital box diagram for outer subshells
+  const occ = e.order.map(s => { const mm = s.match(/(\d)([spdf])(\d+)/); return { n: +mm[1], l: mm[2], c: +mm[3] }; });
+  const maxN = Math.max(...occ.map(o => o.n));
+  const outer = occ.filter(o => o.n >= maxN - 1 && (o.c < LCAP[o.l] || o.n === maxN) || (o.l === 'f' && o.n >= maxN - 2 && o.c < 14));
+  const boxes = `<div class="boxes">${outer.map(o => {
+    const k = LCAP[o.l] / 2, cells = [];
+    for (let i = 0; i < k; i++) { const up = o.c > i, dn = o.c > k + i; cells.push(`<div class="cell">${up ? (dn ? '⇅' : '↑') : ''}</div>`); }
+    return `<div class="sub-b"><div class="cells">${cells.join('')}</div><span>${o.n}${o.l}${sup(o.c)}</span></div>`;
+  }).join('')}</div>`;
+  const config = kv([
+    ['Configuration', esc(e.econf)],
+    ['Full filling order', e.order.map(s => s.replace(/(\d)([spdf])(\d+)/, (a, n, l, c) => n + l + sup(c))).join(' ')],
+    ['Shell occupancy', shellCounts(e).join(' · ')],
+    ['Effective charge (Slater)', Object.entries(e.zeff).map(([k, v]) => `${k} ${v}`).join(', ')]
+  ]) + boxes + `<div class="tablewrap" style="max-height:260px"><table><thead><tr><th>Subshell</th><th>e⁻</th><th>Energy (eV)</th><th>⟨r⟩ (pm)</th></tr></thead><tbody>${e.order.map(s => { const m = s.match(/(\d)([spdf])(\d+)/), rd = radFor(e.Z, m[1] + m[2]); return `<tr><td>${m[1]}${m[2]}</td><td>${m[3]}</td><td>${fmt(rd.E, 4)}</td><td>${fmt(rd.rbar * 52.918, 3)}</td></tr>`; }).join('')}</tbody></table></div><p class="note">Orbital energies and mean radii from a self-consistent local-density calculation of the free atom (non-relativistic, so the heaviest elements are approximate).</p>` + `<p class="note">Boxes show the outer subshells filled by Hund’s rule — each orbital takes one electron before any pairs up. Unpaired arrows are what give the atom its magnetic moment.</p>`;
+
+  const history = kv([
+    ['Discovered', e.disc_year ? e.disc_year : 'Known since antiquity or undated'],
+    ['Discoverers', val(e.discoverers)], ['Name origin', val(e.origin)]
+  ]) + (e.uses ? `<p class="desc"><b>Uses.</b> ${esc(e.uses)}</p>` : '');
+
+  stats.innerHTML =
+    section('overview', 'Overview', '', overview) +
+    section('thermal', 'Physical &amp; thermal', e.mp ? `mp ${fmt(e.mp, 4)} K` : '', thermal) +
+    section('atomic', 'Atomic properties', e.en ? `χ ${e.en}` : '', atomic) +
+    section('magnetic', 'Magnetism', `${m.muS} μB`, magnetic) +
+    section('isotopes', 'Isotopes &amp; half-life', `${known} known`, iso) +
+    section('config', 'Electron configuration', `${m.unpaired} unpaired`, config) +
+    section('history', 'Discovery', e.disc_year || '', history);
+  stats.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => { openState[d.dataset.k] = d.open; }));
+  const it = document.getElementById('isoToggle');
+  if (it) it.onclick = () => { showAllIso = !showAllIso; renderStats(e); };
+}
+function shellCounts(e) {
+  const c = {}; e.order.forEach(s => { const m = s.match(/(\d)([spdf])(\d+)/); c[m[1]] = (c[m[1]] || 0) + +m[3]; });
+  return Object.keys(c).sort().map(n => `${'KLMNOPQ'[n - 1]} ${c[n]}`);
+}
+
+/* ---------- orbital viewer ---------- */
+const canvas = document.getElementById('orb');
+const well = document.getElementById('well');
+let renderer, scene, camera, root, cloud, bohrGroup, nucleus, glMat;
+const LCOL = { s: [0.35, 0.85, 1.0], p: [1.0, 0.42, 0.78], d: [1.0, 0.72, 0.28], f: [0.45, 1.0, 0.55] };
+const LNUM = { s: 0, p: 1, d: 2, f: 3 };
+let mode = 'slice', pulseOn = true, isolate = -1, subList = [];
+const haveGL = typeof THREE !== 'undefined' && (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (_) { return false; } })();
+
+// real angular functions (unnormalized)
+const ANG = {
+  0: [() => 1],
+  1: [(x, y, z) => z, (x, y, z) => x, (x, y, z) => y],
+  2: [(x, y, z) => 3 * z * z - 1, (x, y, z) => 2.45 * x * z, (x, y, z) => 2.45 * y * z, (x, y, z) => 1.22 * (x * x - y * y), (x, y, z) => 2.45 * x * y],
+  3: [(x, y, z) => z * (5 * z * z - 3), (x, y, z) => x * (5 * z * z - 1), (x, y, z) => y * (5 * z * z - 1), (x, y, z) => 3.9 * z * (x * x - y * y), (x, y, z) => 7.7 * x * y * z, (x, y, z) => 1.8 * x * (x * x - 3 * y * y), (x, y, z) => 1.8 * y * (3 * x * x - y * y)]
+};
+const ORB_NAMES = { 0: ['s'], 1: ['pz', 'px', 'py'], 2: ['dz²', 'dxz', 'dyz', 'dx²−y²', 'dxy'], 3: ['fz³', 'fxz²', 'fyz²', 'fz(x²−y²)', 'fxyz', 'fx(x²−3y²)', 'fy(3x²−y²)'] };
+const angMax = {};
+function randDir() { const u = Math.random() * 2 - 1, t = Math.random() * 2 * Math.PI, s = Math.sqrt(1 - u * u); return [s * Math.cos(t), s * Math.sin(t), u]; }
+for (const l in ANG) angMax[l] = ANG[l].map(f => { let m = 0; for (let i = 0; i < 4000; i++) { const d = randDir(); m = Math.max(m, f(...d) ** 2); } return m * 1.05; });
+
+function laguerre(k, a, x) { if (k === 0) return 1; let L0 = 1, L1 = 1 + a - x; for (let i = 1; i < k; i++) { const L2 = ((2 * i + 1 + a - x) * L1 - (i + a) * L0) / (i + 1); L0 = L1; L1 = L2; } return L1; }
+function radialTable(n, l, Z) {
+  const rmax = (2.2 * n * n + 6 * n) / Z, N = 500, r = [], R = [], cdf = [];
+  let acc = 0;
+  for (let i = 0; i <= N; i++) {
+    const ri = rmax * i / N, rho = 2 * Z * ri / n;
+    const Rv = Math.pow(rho, l) * Math.exp(-rho / 2) * laguerre(n - l - 1, 2 * l + 1, rho);
+    r.push(ri); R.push(Rv); if (i) acc += ri * ri * Rv * Rv; cdf.push(acc);
+  }
+  for (let i = 0; i <= N; i++) cdf[i] /= acc;
+  return { r, R, cdf, rmax };
+}
+function sampleR(tab) {
+  const u = Math.random(); let lo = 0, hi = tab.cdf.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tab.cdf[m] < u) lo = m; else hi = m; }
+  const f = (u - tab.cdf[lo]) / Math.max(1e-12, tab.cdf[hi] - tab.cdf[lo]);
+  const r = tab.r[lo] + (tab.r[hi] - tab.r[lo]) * f;
+  return [r, tab.R[lo] + (tab.R[hi] - tab.R[lo]) * f];
+}
+function quantile(tab, q) { for (let i = 0; i < tab.cdf.length; i++) if (tab.cdf[i] >= q) return tab.r[i]; return tab.rmax; }
+
+function initGL() {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x05070a, 1);
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(40, 1, 0.05, 50);
+  camera.position.set(0, 0, 3.3);
+  root = new THREE.Group(); root.rotation.set(0.45, -0.5, 0); scene.add(root);
+  glMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uPulse: { value: 1 }, uSize: { value: 5 }, uAlpha: { value: 0.5 }, uIso: { value: -1 }, uScale: { value: 1 } },
+    vertexShader: `
+      attribute vec3 color; attribute float shell; attribute float sub; attribute float rnd; attribute float w;
+      uniform float uTime, uPulse, uSize, uIso, uScale;
+      varying vec3 vC; varying float vA;
+      void main(){
+        float p = 0.5 + 0.5*sin(uTime*2.3 - shell*0.9 + rnd*0.5);
+        float k = mix(0.7, p, uPulse);
+        vec3 pos = position * (1.0 + 0.06*uPulse*(p-0.5));
+        vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+        float dim = (uIso < -0.5 || abs(sub - uIso) < 0.5) ? 1.0 : 0.05;
+        gl_PointSize = uSize * uScale * w * (0.55 + 0.9*k) / -mv.z;
+        gl_Position = projectionMatrix * mv;
+        vC = color; vA = (0.25 + 0.95*k) * dim * min(w, 1.3);
+      }`,
+    fragmentShader: `
+      uniform float uAlpha; varying vec3 vC; varying float vA;
+      void main(){ vec2 c = gl_PointCoord - 0.5; float d = length(c); if (d > 0.5) discard;
+        float a = pow(1.0 - d*2.0, 1.6); gl_FragColor = vec4(vC * a * vA * uAlpha, 1.0); }`,
+    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+  });
+  // nucleus
+  const ng = new THREE.BufferGeometry();
+  const np = [], nc = [], ns = [], nsub = [], nr = [];
+  for (let i = 0; i < 260; i++) { const d = randDir(), r = Math.cbrt(Math.random()) * 0.035; np.push(d[0] * r, d[1] * r, d[2] * r); const pr = i % 2; nc.push(pr ? 1 : 0.6, pr ? 0.5 : 0.7, pr ? 0.4 : 1); ns.push(0); nsub.push(-5); nr.push(Math.random()); }
+  ng.setAttribute('position', new THREE.Float32BufferAttribute(np, 3)); ng.setAttribute('color', new THREE.Float32BufferAttribute(nc, 3));
+  ng.setAttribute('shell', new THREE.Float32BufferAttribute(ns, 1)); ng.setAttribute('sub', new THREE.Float32BufferAttribute(nsub, 1)); ng.setAttribute('rnd', new THREE.Float32BufferAttribute(nr, 1)); ng.setAttribute('w', new THREE.Float32BufferAttribute(nr.map(() => 1), 1));
+  const nm = glMat.clone(); nm.uniforms = THREE.UniformsUtils.clone(glMat.uniforms); nm.uniforms.uAlpha.value = 0.6; nm.uniforms.uSize.value = 14;
+  nucleus = new THREE.Points(ng, nm); root.add(nucleus);
+  resize(); new ResizeObserver(resize).observe(well);
+  // drag rotate
+  let drag = null;
+  canvas.addEventListener('pointerdown', ev => { drag = [ev.clientX, ev.clientY]; canvas.setPointerCapture(ev.pointerId); autoSpin = false; });
+  canvas.addEventListener('pointermove', ev => { if (!drag) return; root.rotation.y += (ev.clientX - drag[0]) * 0.008; root.rotation.x += (ev.clientY - drag[1]) * 0.008; drag = [ev.clientX, ev.clientY]; });
+  canvas.addEventListener('pointerup', () => { drag = null; setTimeout(() => autoSpin = true, 2500); });
+  canvas.addEventListener('wheel', ev => { ev.preventDefault(); camera.position.z = Math.min(7, Math.max(1.2, camera.position.z * Math.exp(ev.deltaY * 0.001))); }, { passive: false });
+  requestAnimationFrame(loop);
+}
+let autoSpin = !reduce;
+function resize() {
+  const w = well.clientWidth, h = well.clientHeight; if (!w) return;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  const s = h * renderer.getPixelRatio() / 600;
+  glMat.uniforms.uScale.value = s; if (nucleus) nucleus.material.uniforms.uScale.value = s;
+}
+
+function buildCloud(e) {
+  if (cloud) { root.remove(cloud); cloud.geometry.dispose(); }
+  const occ = e.order.map(s => { const m = s.match(/(\d)([spdf])(\d+)/); return { n: +m[1], l: m[2], c: +m[3], key: m[1] + m[2] }; });
+  // radial tables and global scale
+  occ.forEach(o => { o.tab = radFor(e.Z, o.key).tab; o.med = quantile(o.tab, 0.5); });
+  // radius map: each principal shell's median radius lands on an evenly spaced ring, log-interpolated between
+  const ns = [...new Set(occ.map(o => o.n))].sort((a, b) => a - b), K = ns.length;
+  const knots = []; let prev = 0;
+  ns.forEach((n, i) => { const ss = occ.filter(o => o.n === n); let r = Math.exp(ss.reduce((s, o) => s + Math.log(o.med) * o.c, 0) / ss.reduce((s, o) => s + o.c, 0)); r = Math.max(r, prev * 1.2); prev = r; knots.push([r, 0.9 * (i + 1) / K]); });
+  const mapR = r => {
+    if (r <= knots[0][0]) return knots[0][1] * Math.pow(r / knots[0][0], 0.7);
+    for (let i = 1; i < K; i++) if (r <= knots[i][0]) { const [a, da] = knots[i - 1], [b, db] = knots[i]; return da + (db - da) * Math.log(r / a) / Math.log(b / a); }
+    const [a, da] = knots[K - 1]; return da * Math.pow(r / a, K === 1 ? 0.7 : 0.35);
+  };
+  const maxN = ns[K - 1];
+  occ.forEach(o => { o.core = o.c === 2 * (2 * LNUM[o.l] + 1) && o.n < maxN - (o.l === 'f' ? 2 : o.l === 'd' ? 1 : 0); });
+  const orbitals = [];
+  occ.forEach((o, si) => {
+    const l = LNUM[o.l], k = 2 * l + 1;
+    for (let i = 0; i < k; i++) { const num = (o.c > i ? 1 : 0) + (o.c > k + i ? 1 : 0); if (num) orbitals.push({ o, si, l, i, num }); }
+  });
+  const budget = 46000, per = Math.min(1500, budget / orbitals.length);
+  const pos = [], col = [], shell = [], sub = [], rnd = [], wt = [];
+  orbitals.forEach(({ o, si, l, i, num }) => {
+    const f = ANG[l][i], mx = angMax[l][i], base = LCOL[o.l];
+    const count = Math.round(per * (num === 2 ? 1 : 0.62) * (o.core ? 0.4 : 1));
+    const dimC = o.core ? 0.5 : 1;
+    for (let j = 0; j < count; j++) {
+      let d, a; do { d = randDir(); a = f(...d); } while (Math.random() * mx > a * a);
+      const [r, R] = sampleR(o.tab);
+      const disp = mapR(r);
+      pos.push(d[0] * disp, d[2] * disp, d[1] * disp);
+      const sign = Math.sign(R * a) >= 0 ? 1 : 0;
+      const lift = (sign ? 1 : 0.5) * dimC;
+      col.push(base[0] * lift, base[1] * lift, base[2] * lift);
+      shell.push(o.n); sub.push(si); rnd.push(Math.random()); wt.push(o.core ? 0.7 : o.c < 2 * (2 * l + 1) ? 1.45 : 0.9);
+    }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('shell', new THREE.Float32BufferAttribute(shell, 1));
+  g.setAttribute('sub', new THREE.Float32BufferAttribute(sub, 1));
+  g.setAttribute('rnd', new THREE.Float32BufferAttribute(rnd, 1));
+  g.setAttribute('w', new THREE.Float32BufferAttribute(wt, 1));
+  const n = pos.length / 3;
+  glMat.uniforms.uAlpha.value = Math.min(0.85, Math.max(0.2, 55 / Math.sqrt(n)));
+  glMat.uniforms.uSize.value = n < 4000 ? 34 : n < 15000 ? 26 : 20;
+  cloud = new THREE.Points(g, glMat); root.add(cloud);
+  subList = occ;
+}
+
+function buildBohr(e) {
+  if (bohrGroup) { root.remove(bohrGroup); bohrGroup.traverse(o => o.geometry && o.geometry.dispose()); }
+  bohrGroup = new THREE.Group();
+  const shells = {}; e.order.forEach(s => { const m = s.match(/(\d)([spdf])(\d+)/); shells[m[1]] = (shells[m[1]] || 0) + +m[3]; });
+  const ns = Object.keys(shells).map(Number).sort();
+  bohrGroup.userData.rings = [];
+  ns.forEach((n, idx) => {
+    const R = 0.16 + 0.85 * (idx + 1) / ns.length;
+    const ring = new THREE.Group();
+    ring.rotation.x = Math.PI / 2 + (idx % 2 ? 0.35 : -0.25) * (idx / ns.length);
+    ring.rotation.y = idx * 0.5;
+    const lg = new THREE.BufferGeometry().setFromPoints(Array.from({ length: 129 }, (_, i) => new THREE.Vector3(R * Math.cos(i / 128 * Math.PI * 2), R * Math.sin(i / 128 * Math.PI * 2), 0)));
+    const lm = new THREE.LineBasicMaterial({ color: 0x3f5a73, transparent: true, opacity: 0.8 });
+    ring.add(new THREE.Line(lg, lm));
+    const cnt = shells[n], ep = [], ec = [], esh = [], esub = [], er = [];
+    for (let i = 0; i < cnt; i++) { const a = i / cnt * Math.PI * 2; ep.push(R * Math.cos(a), R * Math.sin(a), 0); ec.push(0.5, 0.9, 1); esh.push(n); esub.push(-5); er.push(0); }
+    const eg = new THREE.BufferGeometry();
+    eg.setAttribute('position', new THREE.Float32BufferAttribute(ep, 3)); eg.setAttribute('color', new THREE.Float32BufferAttribute(ec, 3));
+    eg.setAttribute('shell', new THREE.Float32BufferAttribute(esh, 1)); eg.setAttribute('sub', new THREE.Float32BufferAttribute(esub, 1)); eg.setAttribute('rnd', new THREE.Float32BufferAttribute(er, 1)); eg.setAttribute('w', new THREE.Float32BufferAttribute(er.map(() => 1), 1));
+    const em = glMat.clone(); em.uniforms = THREE.UniformsUtils.clone(glMat.uniforms); em.uniforms.uSize.value = 110; em.uniforms.uAlpha.value = 0.95; em.uniforms.uScale = glMat.uniforms.uScale;
+    ring.add(new THREE.Points(eg, em));
+    ring.userData = { speed: 0.6 / (idx + 1) * (idx % 2 ? -1 : 1), lm, em, n };
+    bohrGroup.add(ring); bohrGroup.userData.rings.push(ring);
+  });
+  root.add(bohrGroup);
+}
+
+const NOTES = {
+  slice: 'Each square is a cut through the nucleus in the xz-plane, colored by how likely the electron is to be found there (black never, white most likely). The angular shape of a p, d or f orbital is the same in every atom; what the element changes is the radial part — how big the orbital is, where its dark nodal rings fall, and how deep it dips toward the nucleus. Radial functions come from a self-consistent density-functional calculation of each atom, so True size shows real proportions: inner shells shrink to specks as the nuclear charge grows. m and −m look the same, so only m ≥ 0 is shown. Tap a square to enlarge it.',
+  cloud: 'Drag to rotate. Tap a subshell to isolate it. Lobes are the real (px, dxy …) orbitals built from each atom’s self-consistent radial wavefunctions. Distance from the nucleus is rescaled so the shells sit evenly spaced; filled inner shells are drawn dimmer. Bright and dark lobes have opposite wavefunction sign.',
+  bohr: 'The classic shell picture: how many electrons sit in each shell, K through Q. It is a bookkeeping diagram, not a real electron path.'
+};
+function applyMode() {
+  const slice = mode === 'slice';
+  if (cloud) cloud.visible = mode === 'cloud';
+  if (bohrGroup) bohrGroup.visible = mode === 'bohr';
+  ['Slice', 'Cloud', 'Bohr'].forEach(k => document.getElementById('mode' + k).setAttribute('aria-pressed', mode === k.toLowerCase()));
+  canvas.hidden = slice || !haveGL; sliceCv.hidden = !slice;
+  document.getElementById('subChips').hidden = mode !== 'cloud';
+  document.getElementById('sliceChips').hidden = !slice;
+  document.getElementById('wellTag').textContent = slice ? 'PROBABILITY DENSITY |ψ|² · xz-PLANE' : mode === 'cloud' ? 'REAL ORBITALS · 3D' : 'SHELL MODEL · K L M N O P Q';
+  document.getElementById('wellNote').textContent = NOTES[mode];
+  if (slice) { renderSliceChips(); buildSlices(); kickSlice(); }
+}
+function renderChips() {
+  const box = document.getElementById('subChips');
+  box.innerHTML = '';
+  const all = document.createElement('button'); all.textContent = 'All'; all.setAttribute('aria-pressed', isolate < 0); all.onclick = () => setIso(-1); box.appendChild(all);
+  subList.forEach((o, i) => {
+    const b = document.createElement('button'); b.className = 'chip';
+    const c = LCOL[o.l].map(v => Math.round(v * 255)).join(',');
+    b.innerHTML = `<span class="dot" style="background:rgb(${c})"></span>${o.n}${o.l}${sup(o.c)}`;
+    b.setAttribute('aria-pressed', isolate === i); b.title = ORB_NAMES[LNUM[o.l]].slice(0, Math.min(o.c, 2 * LNUM[o.l] + 1)).join(', ');
+    b.onclick = () => setIso(isolate === i ? -1 : i); box.appendChild(b);
+  });
+}
+function setIso(i) { isolate = i; glMat.uniforms.uIso.value = i; renderChips(); }
+
+let t0 = performance.now(), frozen = 0;
+function loop(now) {
+  const t = (now - t0) / 1000;
+  const time = pulseOn && !reduce ? t : frozen;
+  glMat.uniforms.uTime.value = time; glMat.uniforms.uPulse.value = pulseOn && !reduce ? 1 : 0;
+  if (nucleus) { nucleus.material.uniforms.uTime.value = time * 1.6; nucleus.material.uniforms.uPulse.value = glMat.uniforms.uPulse.value; }
+  if (autoSpin) root.rotation.y += 0.0025;
+  if (bohrGroup && bohrGroup.visible) bohrGroup.userData.rings.forEach(r => {
+    r.children[1].rotation.z = t * r.userData.speed;
+    r.userData.em.uniforms.uTime.value = time; r.userData.em.uniforms.uPulse.value = glMat.uniforms.uPulse.value;
+    const p = 0.5 + 0.5 * Math.sin(time * 2.3 - r.userData.n * 0.9); r.userData.lm.opacity = pulseOn ? 0.35 + 0.6 * p : 0.7;
+  });
+  if (mode !== 'slice') renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+document.getElementById('modeCloud').onclick = () => { mode = 'cloud'; applyMode(); };
+document.getElementById('modeSlice').onclick = () => { mode = 'slice'; applyMode(); };
+document.getElementById('modeBohr').onclick = () => { mode = 'bohr'; applyMode(); };
+document.getElementById('pulseBtn').onclick = ev => { pulseOn = !pulseOn; frozen = (performance.now() - t0) / 1000; ev.currentTarget.setAttribute('aria-pressed', pulseOn); kickSlice(); };
+
+
+/* ---------- self-consistent radial wavefunctions (LDA atom, computed offline) ---------- */
+const RAD = JSON.parse(document.getElementById('rad').textContent);
+const radCache = {};
+function radFor(Z, key) {
+  const id = Z + ':' + key; if (radCache[id]) return radCache[id];
+  const rec = RAD.atoms[Z][key], NG = RAD.NG, XA = RAD.XA, DX = RAD.DX;
+  const bin = atob(rec.b), u = new Float32Array(NG);
+  for (let k = 0; k < NG; k++) { let v = bin.charCodeAt(2 * k) | (bin.charCodeAt(2 * k + 1) << 8); if (v > 32767) v -= 65536; u[k] = v / 32767 * rec.s; }
+  const l = LNUM[key[key.length - 1]], r0 = Math.exp(XA);
+  const cdf = new Float32Array(NG); let acc = 0;
+  for (let k = 0; k < NG; k++) { acc += u[k] * u[k] * Math.exp(XA + k * DX) * DX; cdf[k] = acc; }
+  const rq = q => { for (let k = 0; k < NG; k++) if (cdf[k] >= q * acc) return Math.exp(XA + k * DX); return Math.exp(XA + (NG - 1) * DX); };
+  const R = r => {
+    if (r < r0) return u[0] / r0 * Math.pow(Math.max(r, 1e-12) / r0, l);
+    const fi = (Math.log(r) - XA) / DX, i = fi | 0; if (i >= NG - 1) return 0;
+    const f = fi - i; return (u[i] * (1 - f) + u[i + 1] * f) / r;
+  };
+  const rmax = rq(0.9995), Nt = 700, tr = [], tR = [], tc = []; let a = 0;
+  for (let i = 0; i <= Nt; i++) { const ri = rmax * i / Nt, Rv = R(ri); tr.push(ri); tR.push(Rv); if (i) a += ri * ri * Rv * Rv; tc.push(a); }
+  for (let i = 0; i <= Nt; i++) tc[i] /= a;
+  return radCache[id] = { R, l, E: rec.E, rbar: rec.rbar, half: rq(0.995) * 1.02, tab: { r: tr, R: tR, cdf: tc, rmax } };
+}
+const hydrogenR = (n, l) => r => { const rho = 2 * r / n; return Math.pow(rho, l) * Math.exp(-rho / 2) * laguerre(n - l - 1, 2 * l + 1, rho); };
+
+/* ---------- 2D probability-density slices ---------- */
+const sliceCv = document.getElementById('slice'), sctx = sliceCv.getContext('2d');
+const INF = [[0,0,4],[22,11,57],[66,10,104],[106,23,110],[147,38,103],[188,55,84],[221,81,58],[243,120,25],[252,165,10],[246,215,70],[252,255,164]];
+const LUT = new Uint8ClampedArray(256 * 3);
+for (let i = 0; i < 256; i++) { const f = i / 255 * 10, k = Math.min(9, Math.floor(f)), u = f - k; for (let c = 0; c < 3; c++) LUT[i * 3 + c] = INF[k][c] + (INF[k + 1][c] - INF[k][c]) * u; }
+function legendre(l, m, x) {
+  let pmm = 1; const s = Math.sqrt(Math.max(0, 1 - x * x));
+  for (let i = 1; i <= m; i++) pmm *= -(2 * i - 1) * s;
+  if (l === m) return pmm;
+  let p1 = x * (2 * m + 1) * pmm; if (l === m + 1) return p1;
+  let pl = 0; for (let ll = m + 2; ll <= l; ll++) { pl = ((2 * ll - 1) * x * p1 - (ll + m - 1) * pmm) / (ll - m); pmm = p1; p1 = pl; }
+  return pl;
+}
+const sliceCache = new Map();
+function sliceRef(en) { // brightness reference from the orbital at its own fitted scale
+  if (en.ref) return en.ref;
+  const vals = [], M = 90;
+  for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
+    const x = (i + 0.5) / M * 2 - 1, z = 1 - (j + 0.5) / M * 2, q = Math.hypot(x, z), r = q * en.half;
+    const R = en.Rf(r), P = legendre(en.l, en.m, q > 0 ? z / q : 1); vals.push((R * P) * (R * P));
+  }
+  vals.sort((a, b) => a - b);
+  return en.ref = vals[Math.floor(vals.length * 0.995)] || 1;
+}
+function makeSlice(en, res, half) {
+  const key = `${en.id},${en.m},${res},${half.toPrecision(6)}`; if (sliceCache.has(key)) return sliceCache.get(key);
+  const ref = sliceRef(en), l = en.l, m = en.m;
+  const N = res * res, v = new Float32Array(N), rr = new Float32Array(N);
+  for (let j = 0; j < res; j++) for (let i = 0; i < res; i++) {
+    const x = (i + 0.5) / res * 2 - 1, z = 1 - (j + 0.5) / res * 2, q = Math.hypot(x, z), r = q * half;
+    const R = en.Rf(r), P = legendre(l, m, q > 0 ? z / q : 1);
+    const k = j * res + i; v[k] = Math.min(1, Math.pow((R * P) * (R * P) / ref, 0.42)); rr[k] = r / en.half;
+  }
+  const cv = document.createElement('canvas'); cv.width = cv.height = res;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(res, res);
+  const s = { n: en.n, half, v, rr, res, cv, ctx, img };
+  if (sliceCache.size > 400) sliceCache.clear();
+  sliceCache.set(key, s); return s;
+}
+function paintSlice(s, time, pulse) {
+  const d = s.img.data, v = s.v, rr = s.rr;
+  for (let k = 0, p = 0; k < v.length; k++, p += 4) {
+    const g = pulse ? 0.8 + 0.2 * Math.sin(time * 2.4 - rr[k] * 9 - s.n * 0.9) : 1;
+    const i = Math.min(255, (v[k] * g * 255) | 0) * 3;
+    d[p] = LUT[i]; d[p + 1] = LUT[i + 1]; d[p + 2] = LUT[i + 2]; d[p + 3] = 255;
+  }
+  s.ctx.putImageData(s.img, 0, 0);
+}
+
+let sliceState = { atlas: false, outer: null, sel: -1, shared: true }, sliceList = [], sliceRects = [], sliceRAF = 0, lastSlice = 0;
+function occOf(e) {
+  const occ = e.order.map(s => { const m = s.match(/(\d)([spdf])(\d+)/); return { n: +m[1], l: LNUM[m[2]], L: m[2], c: +m[3], key: m[1] + m[2] }; });
+  const maxN = Math.max(...occ.map(o => o.n));
+  occ.forEach(o => { o.core = o.c === 2 * (2 * o.l + 1) && o.n < maxN - (o.L === 'f' ? 2 : o.L === 'd' ? 1 : 0); });
+  return occ;
+}
+function sliceEntries() {
+  const out = [];
+  if (sliceState.atlas) {
+    for (let n = 1; n <= 4; n++) for (let l = 0; l < n; l++) { const half = quantile(radialTable(n, l, 1), 0.995) * 1.02, Rf = hydrogenR(n, l); for (let m = 0; m <= l; m++) out.push({ n, l, m, L: 'spdf'[l], id: `H${n}${l}`, Rf, half, E: -13.6057 / (n * n), rbar: (3 * n * n - l * (l + 1)) / 2 }); }
+    return out;
+  }
+  const e = byZ(current), occ = occOf(e);
+  let use = occ;
+  const total = occ.reduce((s, o) => s + o.l + 1, 0);
+  if (sliceState.outer === null) sliceState.outer = total > 20;
+  if (sliceState.outer) use = occ.filter(o => !o.core);
+  use.forEach(o => { const rd = radFor(e.Z, o.key); for (let m = 0; m <= o.l; m++) out.push({ n: o.n, l: o.l, m, L: o.L, c: o.c, id: e.Z + o.key, Rf: rd.R, half: rd.half, E: rd.E, rbar: rd.rbar }); });
+  return out;
+}
+function buildSlices() { sliceList = sliceEntries(); if (sliceState.sel >= sliceList.length) sliceState.sel = -1; }
+function sliceArea() {
+  const r = well.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+  if (sliceCv.width !== W || sliceCv.height !== H) { sliceCv.width = W; sliceCv.height = H; }
+  const top = (document.getElementById('ovTop').offsetHeight + 16) * dpr;
+  const chips = document.getElementById('sliceChips');
+  const bot = (chips.hidden ? 12 : chips.offsetHeight + 18) * dpr;
+  return { x: 12 * dpr, y: top, w: W - 24 * dpr, h: H - top - bot, dpr, W, H };
+}
+function drawSlices(time) {
+  if (!sliceList.length) return;
+  const A = sliceArea(), pulse = pulseOn && !reduce, dpr = A.dpr;
+  sctx.fillStyle = '#05070a'; sctx.fillRect(0, 0, A.W, A.H);
+  sctx.imageSmoothingEnabled = true; sctx.imageSmoothingQuality = 'high';
+  sliceRects = [];
+  const label = (txt, x, y, size, align = 'right') => { sctx.font = `${size}px "IBM Plex Mono", ui-monospace, monospace`; sctx.textAlign = align; sctx.fillStyle = 'rgba(0,0,0,.55)'; sctx.fillText(txt, x + dpr, y + dpr); sctx.fillStyle = '#f4f1ea'; sctx.fillText(txt, x, y); };
+  if (sliceState.sel >= 0) {
+    const en = sliceList[sliceState.sel];
+    const barH = 26 * dpr, size = Math.min(A.w, A.h - barH), x = A.x + (A.w - size) / 2, y = A.y;
+    const s = makeSlice(en, Math.min(360, Math.round(size)), en.half);
+    paintSlice(s, time, pulse);
+    sctx.drawImage(s.cv, x, y, size, size);
+    sctx.strokeStyle = '#3a3f47'; sctx.lineWidth = dpr; sctx.strokeRect(x + .5, y + .5, size - 1, size - 1);
+    label(`(${en.n},${en.l},${en.m})`, x + size - 8 * dpr, y + size - 10 * dpr, 15 * dpr);
+    label(`${sliceState.atlas ? 'H ' : byZ(current).sym + ' '}${en.n}${en.L}  m = ${en.m ? '±' + en.m : 0}`, x + 8 * dpr, y + 18 * dpr, 12 * dpr, 'left');
+    label(`ε = ${fmt(en.E, 3)} eV   ⟨r⟩ = ${fmt(en.rbar * 52.918, 3)} pm`, x + 8 * dpr, y + 34 * dpr, 11 * dpr, 'left');
+    // colour bar and scale
+    const by = y + size + 8 * dpr, bw = Math.min(160 * dpr, size * 0.45);
+    for (let i = 0; i < bw; i++) { const k = Math.round(i / bw * 255) * 3; sctx.fillStyle = `rgb(${LUT[k]},${LUT[k + 1]},${LUT[k + 2]})`; sctx.fillRect(x + i, by, 1.5, 8 * dpr); }
+    label('low', x, by + 20 * dpr, 10 * dpr, 'left'); label('high', x + bw, by + 20 * dpr, 10 * dpr);
+    label(`view ±${fmt(s.half * 52.918, 3)} pm`, x + size, by + 9 * dpr, 10 * dpr);
+    sliceRects.push({ x, y, w: size, h: size, i: -1 });
+    return;
+  }
+  const N = sliceList.length, gap = 6 * dpr;
+  let best = 0, cols = 1;
+  for (let c = 1; c <= N; c++) { const rows = Math.ceil(N / c), s = Math.min((A.w - gap * (c - 1)) / c, (A.h - gap * (rows - 1)) / rows); if (s > best) { best = s; cols = c; } }
+  const rows = Math.ceil(N / cols), gw = cols * best + (cols - 1) * gap, gh = rows * best + (rows - 1) * gap;
+  const ox = A.x + (A.w - gw) / 2, oy = A.y + (A.h - gh) / 2;
+  const res = Math.min(140, Math.max(40, Math.round(best)));
+  const shared = sliceState.shared && !sliceState.atlas, common = Math.max(...sliceList.map(q => q.half));
+  sliceList.forEach((en, i) => {
+    const cx = ox + (i % cols) * (best + gap), cy = oy + Math.floor(i / cols) * (best + gap);
+    const s = makeSlice(en, res, shared ? common : en.half);
+    paintSlice(s, time, pulse);
+    sctx.drawImage(s.cv, cx, cy, best, best);
+    sctx.strokeStyle = '#3a3f47'; sctx.lineWidth = dpr; sctx.strokeRect(cx + .5, cy + .5, best - 1, best - 1);
+    if (best > 34 * dpr) label(`(${en.n},${en.l},${en.m})`, cx + best - 4 * dpr, cy + best - 5 * dpr, Math.max(8, Math.min(12, best / dpr / 7)) * dpr);
+    if (best > 70 * dpr) label(`${fmt(en.rbar * 52.918, 2)} pm`, cx + 4 * dpr, cy + 12 * dpr, 9 * dpr, 'left');
+    sliceRects.push({ x: cx, y: cy, w: best, h: best, i });
+  });
+  if (shared) label(`every square ±${fmt(common * 52.918, 3)} pm · true relative size`, ox, Math.min(oy + gh + 13 * dpr, A.y + A.h + 10 * dpr), 10 * dpr, 'left');
+}
+function sliceLoop(now) {
+  sliceRAF = 0;
+  if (mode !== 'slice') return;
+  if (now - lastSlice > 40) { drawSlices(now / 1000); lastSlice = now; }
+  if (pulseOn && !reduce) sliceRAF = requestAnimationFrame(sliceLoop);
+}
+function kickSlice() { if (mode !== 'slice') return; cancelAnimationFrame(sliceRAF); lastSlice = 0; drawSlices(performance.now() / 1000); if (pulseOn && !reduce) sliceRAF = requestAnimationFrame(sliceLoop); }
+sliceCv.addEventListener('click', ev => {
+  const r = sliceCv.getBoundingClientRect(), dpr = sliceCv.width / r.width;
+  const px = (ev.clientX - r.left) * dpr, py = (ev.clientY - r.top) * dpr;
+  const hit = sliceRects.find(q => px >= q.x && px <= q.x + q.w && py >= q.y && py <= q.y + q.h);
+  if (!hit) return;
+  sliceState.sel = hit.i === -1 ? -1 : hit.i;
+  renderSliceChips(); kickSlice();
+});
+function renderSliceChips() {
+  const box = document.getElementById('sliceChips'); box.innerHTML = '';
+  const add = (txt, pressed, fn, title) => { const b = document.createElement('button'); b.textContent = txt; b.setAttribute('aria-pressed', pressed); if (title) b.title = title; b.onclick = fn; box.appendChild(b); return b; };
+  add('Grid', sliceState.sel < 0, () => { sliceState.sel = -1; renderSliceChips(); kickSlice(); });
+  if (!sliceState.atlas) add(sliceState.outer ? 'Show all shells' : 'Outer shells only', false, () => { sliceState.outer = !sliceState.outer; sliceState.sel = -1; buildSlices(); renderSliceChips(); kickSlice(); }, 'Switch between every occupied subshell and only the outer ones');
+  if (!sliceState.atlas && sliceState.sel < 0) add(sliceState.shared ? 'Fit each' : 'True size', false, () => { sliceState.shared = !sliceState.shared; renderSliceChips(); kickSlice(); }, 'Draw every orbital on one shared scale, or fit each one to its square');
+  add('Hydrogen n ≤ 4', sliceState.atlas, () => { sliceState.atlas = !sliceState.atlas; sliceState.sel = -1; buildSlices(); renderSliceChips(); kickSlice(); }, 'The classic hydrogen atlas, n = 1 to 4');
+  if (sliceState.sel >= 0) {
+    const en = sliceList[sliceState.sel];
+    sliceList.forEach((o, i) => { if (o.n === en.n && o.l === en.l && o.l > 0) add(`m ${o.m ? '±' + o.m : 0}`, i === sliceState.sel, () => { sliceState.sel = i; renderSliceChips(); kickSlice(); }); });
+  }
+}
+new ResizeObserver(() => { if (mode === 'slice') kickSlice(); }).observe(well);
+
+/* ---------- selection ---------- */
+let current = 0;
+function select(z, zoom) {
+  const e = byZ(z); if (!e) return;
+  if (tiles[current]) tiles[current].classList.remove('sel');
+  current = z; tiles[z].classList.add('sel');
+  tilesG.appendChild(tiles[z]);
+  selEl.value = z;
+  renderStats(e);
+  if (zoom) { animateTo(focusBox(e)); highlightSeries(e.series); }
+  sliceState.sel = -1; sliceState.outer = null;
+  if (haveGL) { isolate = -1; glMat.uniforms.uIso.value = -1; buildCloud(e); buildBohr(e); renderChips(); }
+  applyMode();
+}
+if (haveGL) initGL();
+else { document.getElementById('modeCloud').hidden = true; document.getElementById('modeBohr').hidden = true; }
+select(26, false);
+})();
+</script>
