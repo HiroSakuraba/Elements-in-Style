@@ -89,8 +89,8 @@ aside.panel { min-width: 0; position: sticky; top: calc(env(safe-area-inset-top,
 .well .ov.b { bottom: 10px; }
 .well .ov > * { pointer-events: auto; }
 .well .tag { font: 11px var(--f-data); color: #9fb0c2; letter-spacing: .06em; }
-.xinfo { position: absolute; left: 12px; right: 12px; top: 64px; font: 11.5px/1.5 var(--f-data); color: #cfd8e3; pointer-events: none; text-shadow: 0 1px 2px #000; display: grid; gap: 2px; }
-.xinfo b { color: #fcffa4; font-weight: 500; }
+.xinfo { margin: 8px 0 0; font: 12px/1.5 var(--f-data); color: var(--ink-2); display: grid; gap: 2px; }
+.xinfo b { color: var(--ink); font-weight: 500; }
 .xinfo .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px 0 6px; vertical-align: -1px; box-shadow: 0 0 8px currentColor; border: 0; }
 .well button { background: rgba(20,26,34,.72); color: #dbe4ee; border-color: #2a3542; font: 12px var(--f-data); padding: 4px 8px; }
 .well button[aria-pressed="true"] { color: #fff; border-color: #7fd6ff; }
@@ -207,8 +207,8 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
         <div class="ov b" id="orbChips" hidden></div>
         <div class="ov b" id="elekChips" hidden></div>
         <div class="ov b" id="shellChips" hidden></div>
-        <div class="xinfo" id="xInfo" hidden></div>
       </div>
+      <div class="xinfo" id="xInfo" hidden></div>
       <p class="wellnote" id="wellNote"></p>
       <details class="hist" id="hist" open><summary>History<span class="when" id="histWhen"></span></summary><div class="hbody" id="histBody"></div></details>
       <div id="stats"></div>
@@ -1131,7 +1131,7 @@ function renderXInfo() {
   if (!elekState.excite || !elekMesh || mode !== 'elek') { box.hidden = true; return; }
   const x = elekMesh.material.userData.x, e = byZ(current), model = 1239.84 / x.dE, meas = MEASURED[e.Z];
   const nm = meas ? meas[0] : model, nu = 299792458 / (nm * 1e-9), slow = nu / 1.3;
-  box.hidden = false; const ot = document.getElementById('ovTop'); box.style.top = (ot.offsetTop + ot.offsetHeight + 10) + 'px';
+  box.hidden = false;
   const ex = Math.floor(Math.log10(slow)), slowTxt = `${Math.round(slow / Math.pow(10, ex))} × 10${sup(ex)}`;
   box.innerHTML = `<div><b>${x.from} → ${x.to}</b> <span class="sw" style="background:${nmToRGB(nm)}"></span>${meas ? `measured ${meas[0]} nm${meas[1] ? ` (${meas[1]})` : ''} · model ≈ ${Math.round(model)} nm` : `model ≈ ${Math.round(model)} nm`} · ${bandOf(nm)}</div>
     <div>light at ${(nu / 1e15).toFixed(2)} PHz, shown about ${slowTxt} times slower · <span id="xPhase">${xPhaseName}</span></div>`;
@@ -1145,7 +1145,6 @@ function xUpdate(now) {
     if (tt < acc + dur) { const f = (tt - acc) / dur, ease = 0.5 - 0.5 * Math.cos(Math.PI * f); th = i === 0 || i === 4 ? 0 : i === 1 ? ease * Math.PI : i === 2 ? Math.PI : (1 - ease) * Math.PI; name = nm; break; }
     acc += dur;
   }
-  const xb = document.getElementById('xInfo'), ot = document.getElementById('ovTop'); xb.style.top = (ot.offsetTop + ot.offsetHeight + 10) + 'px';
   u.uCa.value = Math.cos(th / 2); u.uCb.value = Math.sin(th / 2); u.uPhase.value = (now - xStart) / 1000 * 2 * Math.PI * 1.3;
   if (name !== xPhaseName) { xPhaseName = name; const el = document.getElementById('xPhase'); if (el) el.textContent = name; }
 }
