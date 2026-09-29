@@ -195,21 +195,25 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
     <aside class="panel" aria-label="Selected element">
       <div class="idcard" id="idcard"></div>
       <div class="well" id="well">
-        <canvas id="orb" aria-label="3D electron orbital cloud" hidden></canvas>
+        <canvas id="orb" aria-label="3D orbital shapes and Elektronium view" hidden></canvas>
         <canvas id="slice" aria-label="Probability density slices of the occupied orbitals"></canvas>
+        <canvas id="shellCv" aria-label="Electron shells as Elektronium layers, with the radial density" hidden></canvas>
         <div class="ov t" id="ovTop">
           <span class="tag" id="wellTag">PROBABILITY DENSITY |ψ|²</span>
-          <div style="display:flex;gap:6px">
-            <button id="modeSlice" aria-pressed="true">2D density</button>
-            <button id="modeCloud" aria-pressed="false">3D</button>
-            <button id="modeBohr" aria-pressed="false">Shells</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+            <button id="modeSlice" aria-pressed="true">2D</button>
+            <button id="modeOrb" aria-pressed="false">3D</button>
+            <button id="modeElek" aria-pressed="false">Elektronium</button>
+            <button id="modeShells" aria-pressed="false">Shells</button>
             <button id="pulseBtn" aria-pressed="true">Pulse</button>
           </div>
         </div>
-        <div class="ov b" id="subChips" hidden></div>
         <div class="ov b" id="sliceChips"></div>
+        <div class="ov b" id="orbChips" hidden></div>
+        <div class="ov b" id="elekChips" hidden></div>
+        <div class="ov b" id="shellChips" hidden></div>
       </div>
-      <p class="wellnote" id="wellNote">Drag to rotate. Tap a subshell to isolate it. Lobes are hydrogen-like orbitals scaled by each subshell’s Slater effective charge. Distance from the nucleus is rescaled so the shells sit evenly spaced; filled inner shells are drawn dimmer. Bright and dark lobes have opposite wavefunction sign.</p>
+      <p class="wellnote" id="wellNote"></p>
       <details class="hist" id="hist" open><summary>History<span class="when" id="histWhen"></span></summary><div class="hbody" id="histBody"></div></details>
       <div id="stats"></div>
     </aside>
@@ -596,23 +600,20 @@ function shellCounts(e) {
 /* ---------- orbital viewer ---------- */
 const canvas = document.getElementById('orb');
 const well = document.getElementById('well');
-let renderer, scene, camera, root, cloud, bohrGroup, nucleus, glMat;
-const LCOL = { s: [0.35, 0.85, 1.0], p: [1.0, 0.42, 0.78], d: [1.0, 0.72, 0.28], f: [0.45, 1.0, 0.55] };
 const LNUM = { s: 0, p: 1, d: 2, f: 3 };
-let mode = 'slice', pulseOn = true, isolate = -1, subList = [];
+let mode = 'slice', pulseOn = true;
 const haveGL = typeof THREE !== 'undefined' && (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (_) { return false; } })();
 
-// real angular functions (unnormalized)
-const ANG = {
-  0: [() => 1],
-  1: [(x, y, z) => z, (x, y, z) => x, (x, y, z) => y],
-  2: [(x, y, z) => 3 * z * z - 1, (x, y, z) => 2.45 * x * z, (x, y, z) => 2.45 * y * z, (x, y, z) => 1.22 * (x * x - y * y), (x, y, z) => 2.45 * x * y],
-  3: [(x, y, z) => z * (5 * z * z - 3), (x, y, z) => x * (5 * z * z - 1), (x, y, z) => y * (5 * z * z - 1), (x, y, z) => 3.9 * z * (x * x - y * y), (x, y, z) => 7.7 * x * y * z, (x, y, z) => 1.8 * x * (x * x - 3 * y * y), (x, y, z) => 1.8 * y * (3 * x * x - y * y)]
+// Normalized real spherical harmonics (physics axes, z up). A filled subshell sums to (2l+1)/4π in every direction.
+const C1 = Math.sqrt(3 / (4 * Math.PI)), C2 = Math.sqrt(5 / (16 * Math.PI)), C3 = Math.sqrt(7 / (16 * Math.PI));
+const YN = {
+  0: [() => 1 / Math.sqrt(4 * Math.PI)],
+  1: [(x, y, z) => C1 * z, (x, y, z) => C1 * x, (x, y, z) => C1 * y],
+  2: [(x, y, z) => C2 * (3 * z * z - 1), (x, y, z) => C2 * 3.4641016 * x * z, (x, y, z) => C2 * 3.4641016 * y * z, (x, y, z) => C2 * 1.7320508 * (x * x - y * y), (x, y, z) => C2 * 3.4641016 * x * y],
+  3: [(x, y, z) => C3 * z * (5 * z * z - 3), (x, y, z) => C3 * 1.2247449 * x * (5 * z * z - 1), (x, y, z) => C3 * 1.2247449 * y * (5 * z * z - 1), (x, y, z) => C3 * 3.8729833 * z * (x * x - y * y), (x, y, z) => C3 * 7.7459667 * x * y * z, (x, y, z) => C3 * 1.5811388 * x * (x * x - 3 * y * y), (x, y, z) => C3 * 1.5811388 * y * (3 * x * x - y * y)]
 };
 const ORB_NAMES = { 0: ['s'], 1: ['pz', 'px', 'py'], 2: ['dz²', 'dxz', 'dyz', 'dx²−y²', 'dxy'], 3: ['fz³', 'fxz²', 'fyz²', 'fz(x²−y²)', 'fxyz', 'fx(x²−3y²)', 'fy(3x²−y²)'] };
-const angMax = {};
-function randDir() { const u = Math.random() * 2 - 1, t = Math.random() * 2 * Math.PI, s = Math.sqrt(1 - u * u); return [s * Math.cos(t), s * Math.sin(t), u]; }
-for (const l in ANG) angMax[l] = ANG[l].map(f => { let m = 0; for (let i = 0; i < 4000; i++) { const d = randDir(); m = Math.max(m, f(...d) ** 2); } return m * 1.05; });
+const SHELL_LETTERS = 'KLMNOPQ';
 
 function laguerre(k, a, x) { if (k === 0) return 1; let L0 = 1, L1 = 1 + a - x; for (let i = 1; i < k; i++) { const L2 = ((2 * i + 1 + a - x) * L1 - (i + a) * L0) / (i + 1); L0 = L1; L1 = L2; } return L1; }
 function radialTable(n, l, Z) {
@@ -626,77 +627,21 @@ function radialTable(n, l, Z) {
   for (let i = 0; i <= N; i++) cdf[i] /= acc;
   return { r, R, cdf, rmax };
 }
-function sampleR(tab) {
-  const u = Math.random(); let lo = 0, hi = tab.cdf.length - 1;
-  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tab.cdf[m] < u) lo = m; else hi = m; }
-  const f = (u - tab.cdf[lo]) / Math.max(1e-12, tab.cdf[hi] - tab.cdf[lo]);
-  const r = tab.r[lo] + (tab.r[hi] - tab.r[lo]) * f;
-  return [r, tab.R[lo] + (tab.R[hi] - tab.R[lo]) * f];
-}
 function quantile(tab, q) { for (let i = 0; i < tab.cdf.length; i++) if (tab.cdf[i] >= q) return tab.r[i]; return tab.rmax; }
+const infernoAt = v => { const i = Math.max(0, Math.min(255, Math.round(v * 255))) * 3; return [LUT[i], LUT[i + 1], LUT[i + 2]]; };
 
-function initGL() {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-  renderer.setClearColor(0x05070a, 1);
-  scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(40, 1, 0.05, 50);
-  camera.position.set(0, 0, 3.3);
-  root = new THREE.Group(); root.rotation.set(0.45, -0.5, 0); scene.add(root);
-  glMat = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uPulse: { value: 1 }, uSize: { value: 5 }, uAlpha: { value: 0.5 }, uIso: { value: -1 }, uScale: { value: 1 } },
-    vertexShader: `
-      attribute vec3 color; attribute float shell; attribute float sub; attribute float rnd; attribute float w;
-      uniform float uTime, uPulse, uSize, uIso, uScale;
-      varying vec3 vC; varying float vA;
-      void main(){
-        float p = 0.5 + 0.5*sin(uTime*2.3 - shell*0.9 + rnd*0.5);
-        float k = mix(0.7, p, uPulse);
-        vec3 pos = position * (1.0 + 0.06*uPulse*(p-0.5));
-        vec4 mv = modelViewMatrix * vec4(pos, 1.0);
-        float dim = (uIso < -0.5 || abs(sub - uIso) < 0.5) ? 1.0 : 0.05;
-        gl_PointSize = uSize * uScale * w * (0.55 + 0.9*k) / -mv.z;
-        gl_Position = projectionMatrix * mv;
-        vC = color; vA = (0.25 + 0.95*k) * dim * min(w, 1.3);
-      }`,
-    fragmentShader: `
-      uniform float uAlpha; varying vec3 vC; varying float vA;
-      void main(){ vec2 c = gl_PointCoord - 0.5; float d = length(c); if (d > 0.5) discard;
-        float a = pow(1.0 - d*2.0, 1.6); gl_FragColor = vec4(vC * a * vA * uAlpha, 1.0); }`,
-    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+/* ---------- atom model shared by the 3D, Elektronium and Shells views ---------- */
+const modelCache = {};
+function hundOcc(l, c) { const k = 2 * l + 1; return Array.from({ length: k }, (_, i) => (c > i ? 1 : 0) + (c > k + i ? 1 : 0)); }
+function atomModel(e) {
+  if (modelCache[e.Z]) return modelCache[e.Z];
+  const occ = e.order.map(s => {
+    const m = s.match(/(\d)([spdf])(\d+)/), n = +m[1], L = m[2], l = LNUM[L], c = +m[3], key = m[1] + m[2], rd = radFor(e.Z, key);
+    return { n, L, l, c, key, rd, med: quantile(rd.tab, 0.5), occM: hundOcc(l, c) };
   });
-  // nucleus
-  const ng = new THREE.BufferGeometry();
-  const np = [], nc = [], ns = [], nsub = [], nr = [];
-  for (let i = 0; i < 260; i++) { const d = randDir(), r = Math.cbrt(Math.random()) * 0.035; np.push(d[0] * r, d[1] * r, d[2] * r); const pr = i % 2; nc.push(pr ? 1 : 0.6, pr ? 0.5 : 0.7, pr ? 0.4 : 1); ns.push(0); nsub.push(-5); nr.push(Math.random()); }
-  ng.setAttribute('position', new THREE.Float32BufferAttribute(np, 3)); ng.setAttribute('color', new THREE.Float32BufferAttribute(nc, 3));
-  ng.setAttribute('shell', new THREE.Float32BufferAttribute(ns, 1)); ng.setAttribute('sub', new THREE.Float32BufferAttribute(nsub, 1)); ng.setAttribute('rnd', new THREE.Float32BufferAttribute(nr, 1)); ng.setAttribute('w', new THREE.Float32BufferAttribute(nr.map(() => 1), 1));
-  const nm = glMat.clone(); nm.uniforms = THREE.UniformsUtils.clone(glMat.uniforms); nm.uniforms.uAlpha.value = 0.6; nm.uniforms.uSize.value = 14;
-  nucleus = new THREE.Points(ng, nm); root.add(nucleus);
-  resize(); new ResizeObserver(resize).observe(well);
-  // drag rotate
-  let drag = null;
-  canvas.addEventListener('pointerdown', ev => { drag = [ev.clientX, ev.clientY]; canvas.setPointerCapture(ev.pointerId); autoSpin = false; });
-  canvas.addEventListener('pointermove', ev => { if (!drag) return; root.rotation.y += (ev.clientX - drag[0]) * 0.008; root.rotation.x += (ev.clientY - drag[1]) * 0.008; drag = [ev.clientX, ev.clientY]; });
-  canvas.addEventListener('pointerup', () => { drag = null; setTimeout(() => autoSpin = true, 2500); });
-  canvas.addEventListener('wheel', ev => { ev.preventDefault(); camera.position.z = Math.min(7, Math.max(1.2, camera.position.z * Math.exp(ev.deltaY * 0.001))); }, { passive: false });
-  requestAnimationFrame(loop);
-}
-let autoSpin = !reduce;
-function resize() {
-  const w = well.clientWidth, h = well.clientHeight; if (!w) return;
-  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
-  const s = h * renderer.getPixelRatio() / 600;
-  glMat.uniforms.uScale.value = s; if (nucleus) nucleus.material.uniforms.uScale.value = s;
-}
-
-function buildCloud(e) {
-  if (cloud) { root.remove(cloud); cloud.geometry.dispose(); }
-  const occ = e.order.map(s => { const m = s.match(/(\d)([spdf])(\d+)/); return { n: +m[1], l: m[2], c: +m[3], key: m[1] + m[2] }; });
-  // radial tables and global scale
-  occ.forEach(o => { o.tab = radFor(e.Z, o.key).tab; o.med = quantile(o.tab, 0.5); });
-  // radius map: each principal shell's median radius lands on an evenly spaced ring, log-interpolated between
+  occ.forEach(o => { o.aniso = o.l > 0 && o.occM.some(v => v !== o.occM[0]); });
   const ns = [...new Set(occ.map(o => o.n))].sort((a, b) => a - b), K = ns.length;
+  // evenly spaced shells: each shell's median radius lands on d = 0.9 (i+1)/K, log-interpolated between
   const knots = []; let prev = 0;
   ns.forEach((n, i) => { const ss = occ.filter(o => o.n === n); let r = Math.exp(ss.reduce((s, o) => s + Math.log(o.med) * o.c, 0) / ss.reduce((s, o) => s + o.c, 0)); r = Math.max(r, prev * 1.2); prev = r; knots.push([r, 0.9 * (i + 1) / K]); });
   const mapR = r => {
@@ -704,121 +649,529 @@ function buildCloud(e) {
     for (let i = 1; i < K; i++) if (r <= knots[i][0]) { const [a, da] = knots[i - 1], [b, db] = knots[i]; return da + (db - da) * Math.log(r / a) / Math.log(b / a); }
     const [a, da] = knots[K - 1]; return da * Math.pow(r / a, K === 1 ? 0.7 : 0.35);
   };
-  const maxN = ns[K - 1];
-  occ.forEach(o => { o.core = o.c === 2 * (2 * LNUM[o.l] + 1) && o.n < maxN - (o.l === 'f' ? 2 : o.l === 'd' ? 1 : 0); });
-  const orbitals = [];
-  occ.forEach((o, si) => {
-    const l = LNUM[o.l], k = 2 * l + 1;
-    for (let i = 0; i < k; i++) { const num = (o.c > i ? 1 : 0) + (o.c > k + i ? 1 : 0); if (num) orbitals.push({ o, si, l, i, num }); }
+  const ND = 2048, DMAX = 1.1, rTab = new Float64Array(ND + 1);
+  for (let k = 0; k <= ND; k++) {
+    const d = k / ND * DMAX; let lo = Math.log(1e-7), hi = Math.log(400);
+    for (let it = 0; it < 48; it++) { const mid = (lo + hi) / 2; if (mapR(Math.exp(mid)) < d) lo = mid; else hi = mid; }
+    rTab[k] = k === 0 ? 0 : Math.exp((lo + hi) / 2);
+  }
+  const rOf = d => { const f = Math.max(0, Math.min(ND, d / DMAX * ND)), i = Math.min(ND - 1, f | 0), t = f - i; return rTab[i] * (1 - t) + rTab[i + 1] * t; };
+  const drdd = d => (rOf(Math.min(DMAX, d + 0.002)) - rOf(Math.max(0, d - 0.002))) / (Math.min(DMAX, d + 0.002) - Math.max(0, d - 0.002));
+  const shells = ns.map((n, i) => ({ n, i, letter: SHELL_LETTERS[n - 1], count: occ.filter(o => o.n === n).reduce((s, o) => s + o.c, 0), d: knots[i][1] }));
+  occ.forEach(o => { o.shell = ns.indexOf(o.n); });
+  return modelCache[e.Z] = { occ, ns, K, mapR, rOf, drdd, shells, DMAX };
+}
+const shellColor = (i, K) => infernoAt(K === 1 ? 0.78 : 0.46 + 0.5 * i / (K - 1));
+// Physics direction (x, y, z-up) from three.js object coordinates (y-up)
+const physDir = (X, Y, Zt) => [X, -Zt, Y];
+
+/* ---------- WebGL scene ---------- */
+let galleryGroup = null, renderer, scene, camera, root, orbGroup = null, wholeGroup = null, elekMesh = null, lutTex = null, axesGroup = null;
+let orbState = { whole: false, key: null, orb: -1 }, elekState = { cut: true, layers: false };
+const dirty = { orb: true, whole: true, elek: true, shells: true };
+let autoSpin = !reduce;
+
+function textSprite(txt, size = 0.1, color = '#f4f1ea') {
+  const c = document.createElement('canvas'), ctx = c.getContext('2d'), fs = 64;
+  ctx.font = `500 ${fs}px "IBM Plex Mono", ui-monospace, monospace`;
+  const w = Math.ceil(ctx.measureText(txt).width) + 48; c.width = w; c.height = fs + 28;
+  ctx.font = `500 ${fs}px "IBM Plex Mono", ui-monospace, monospace`; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(5,7,10,.85)'; ctx.strokeText(txt, 24, c.height / 2);
+  ctx.fillStyle = color; ctx.fillText(txt, 24, c.height / 2);
+  const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sp.scale.set(size * c.width / c.height, size, 1); sp.renderOrder = 10;
+  return sp;
+}
+
+function initGL() {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x05070a, 1);
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(40, 1, 0.05, 50);
+  camera.position.set(0, 0, 3.4);
+  scene.add(camera);
+  scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x1a1020, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 0.95); key.position.set(1.2, 1.6, 2.4); camera.add(key);
+  const rim = new THREE.DirectionalLight(0x9fb8ff, 0.35); rim.position.set(-2, -1, -1.5); camera.add(rim);
+  root = new THREE.Group(); root.rotation.set(0.42, -0.62, 0); scene.add(root);
+  const lut = new Uint8Array(256 * 4); for (let i = 0; i < 256; i++) { lut[i * 4] = LUT[i * 3]; lut[i * 4 + 1] = LUT[i * 3 + 1]; lut[i * 4 + 2] = LUT[i * 3 + 2]; lut[i * 4 + 3] = 255; }
+  lutTex = new THREE.DataTexture(lut, 256, 1, THREE.RGBAFormat); lutTex.magFilter = lutTex.minFilter = THREE.LinearFilter; lutTex.needsUpdate = true;
+  // axes: physics x, y, z
+  axesGroup = new THREE.Group();
+  const axMat = new THREE.LineBasicMaterial({ color: 0x5a6675, transparent: true, opacity: 0.55 });
+  [[[1, 0, 0], 'x'], [[0, 0, -1], 'y'], [[0, 1, 0], 'z']].forEach(([v, name]) => {
+    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-v[0] * 1.15, -v[1] * 1.15, -v[2] * 1.15), new THREE.Vector3(v[0] * 1.15, v[1] * 1.15, v[2] * 1.15)]);
+    axesGroup.add(new THREE.Line(g, axMat));
+    const s = textSprite(name, 0.09, '#8a96a6'); s.position.set(v[0] * 1.24, v[1] * 1.24, v[2] * 1.24); axesGroup.add(s);
   });
-  const budget = 46000, per = Math.min(1500, budget / orbitals.length);
-  const pos = [], col = [], shell = [], sub = [], rnd = [], wt = [];
-  orbitals.forEach(({ o, si, l, i, num }) => {
-    const f = ANG[l][i], mx = angMax[l][i], base = LCOL[o.l];
-    const count = Math.round(per * (num === 2 ? 1 : 0.62) * (o.core ? 0.4 : 1));
-    const dimC = o.core ? 0.5 : 1;
-    for (let j = 0; j < count; j++) {
-      let d, a; do { d = randDir(); a = f(...d); } while (Math.random() * mx > a * a);
-      const [r, R] = sampleR(o.tab);
-      const disp = mapR(r);
-      pos.push(d[0] * disp, d[2] * disp, d[1] * disp);
-      const sign = Math.sign(R * a) >= 0 ? 1 : 0;
-      const lift = (sign ? 1 : 0.5) * dimC;
-      col.push(base[0] * lift, base[1] * lift, base[2] * lift);
-      shell.push(o.n); sub.push(si); rnd.push(Math.random()); wt.push(o.core ? 0.7 : o.c < 2 * (2 * l + 1) ? 1.45 : 0.9);
+  root.add(axesGroup);
+  resize(); new ResizeObserver(resize).observe(well);
+  let drag = null;
+  canvas.addEventListener('pointerdown', ev => { drag = [ev.clientX, ev.clientY]; canvas.setPointerCapture(ev.pointerId); autoSpin = false; });
+  canvas.addEventListener('pointermove', ev => { if (!drag) return; root.rotation.y += (ev.clientX - drag[0]) * 0.008; root.rotation.x += (ev.clientY - drag[1]) * 0.008; drag = [ev.clientX, ev.clientY]; });
+  canvas.addEventListener('pointerup', () => { drag = null; if (!reduce) setTimeout(() => autoSpin = true, 3000); });
+  canvas.addEventListener('wheel', ev => { ev.preventDefault(); camera.position.z = Math.min(7, Math.max(1.4, camera.position.z * Math.exp(ev.deltaY * 0.001))); }, { passive: false });
+  requestAnimationFrame(loop);
+}
+function resize() {
+  const w = well.clientWidth, h = well.clientHeight; if (!w || !renderer) return;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+function disposeGroup(g) { if (!g) return; root.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
+
+/* ---------- 3D orbital shapes (isosurfaces by marching tetrahedra) ---------- */
+const TET = [[0, 5, 1, 6], [0, 1, 2, 6], [0, 2, 3, 6], [0, 3, 7, 6], [0, 7, 4, 6], [0, 4, 5, 6]];
+const COFF = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]];
+function isoMesh(vals, N, iso, sign) {
+  const M = N + 1, h = 2 / N, id = (i, j, k) => (k * M + j) * M + i;
+  const g = (i, j, k, ax) => { // central-difference gradient of sign*vals
+    const lo = [i, j, k], hi = [i, j, k]; lo[ax] = Math.max(0, lo[ax] - 1); hi[ax] = Math.min(N, hi[ax] + 1);
+    return sign * (vals[id(...hi)] - vals[id(...lo)]) / ((hi[ax] - lo[ax]) * h);
+  };
+  const pos = [], nor = [];
+  const cp = new Array(8), cv = new Array(8), cg = new Array(8);
+  const vert = (a, b) => {
+    const t = (iso - cv[a]) / (cv[b] - cv[a]);
+    const p = [cp[a][0] + (cp[b][0] - cp[a][0]) * t, cp[a][1] + (cp[b][1] - cp[a][1]) * t, cp[a][2] + (cp[b][2] - cp[a][2]) * t];
+    const nx = -(cg[a][0] + (cg[b][0] - cg[a][0]) * t), ny = -(cg[a][1] + (cg[b][1] - cg[a][1]) * t), nz = -(cg[a][2] + (cg[b][2] - cg[a][2]) * t);
+    const L = Math.hypot(nx, ny, nz) || 1; return [p, [nx / L, ny / L, nz / L]];
+  };
+  const tri = (A, B, C) => {
+    const ux = B[0][0] - A[0][0], uy = B[0][1] - A[0][1], uz = B[0][2] - A[0][2], vx = C[0][0] - A[0][0], vy = C[0][1] - A[0][1], vz = C[0][2] - A[0][2];
+    const gx = uy * vz - uz * vy, gy = uz * vx - ux * vz, gz = ux * vy - uy * vx;
+    const nv = [A[1][0] + B[1][0] + C[1][0], A[1][1] + B[1][1] + C[1][1], A[1][2] + B[1][2] + C[1][2]];
+    if (gx * nv[0] + gy * nv[1] + gz * nv[2] < 0) { const T = B; B = C; C = T; }
+    for (const V of [A, B, C]) { pos.push(V[0][0], V[0][1], V[0][2]); nor.push(V[1][0], V[1][1], V[1][2]); }
+  };
+  for (let k = 0; k < N; k++) for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    let nIn = 0;
+    for (let c = 0; c < 8; c++) { const o = COFF[c]; const v = sign * vals[id(i + o[0], j + o[1], k + o[2])]; cv[c] = v; if (v > iso) nIn++; }
+    if (nIn === 0 || nIn === 8) continue;
+    for (let c = 0; c < 8; c++) { const o = COFF[c], a = i + o[0], b = j + o[1], d = k + o[2]; cp[c] = [-1 + a * h, -1 + b * h, -1 + d * h]; cg[c] = [g(a, b, d, 0), g(a, b, d, 1), g(a, b, d, 2)]; }
+    for (const t of TET) {
+      const ins = t.filter(c => cv[c] > iso), outs = t.filter(c => cv[c] <= iso);
+      if (ins.length === 0 || ins.length === 4) continue;
+      if (ins.length === 1) tri(vert(ins[0], outs[0]), vert(ins[0], outs[1]), vert(ins[0], outs[2]));
+      else if (ins.length === 3) tri(vert(outs[0], ins[0]), vert(outs[0], ins[1]), vert(outs[0], ins[2]));
+      else { const a = vert(ins[0], outs[0]), b = vert(ins[0], outs[1]), c = vert(ins[1], outs[1]), d = vert(ins[1], outs[0]); tri(a, b, c); tri(a, c, d); }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  return geo;
+}
+const PHASE_POS = 0xf5a524, PHASE_NEG = 0x8b4fd6;
+const orbMats = [];
+function orbitalField(o, i, N) {
+  const M = N + 1, vals = new Float32Array(M * M * M), H = o.rd.half, f = YN[o.l][i], R = o.rd.R;
+  for (let k = 0; k <= N; k++) for (let j = 0; j <= N; j++) for (let ii = 0; ii <= N; ii++) {
+    const X = -1 + ii * 2 / N, Y = -1 + j * 2 / N, Zt = -1 + k * 2 / N, q = Math.hypot(X, Y, Zt);
+    const [x, y, z] = physDir(X, Y, Zt);
+    vals[(k * M + j) * M + ii] = q < 1e-9 ? (o.l === 0 ? R(0) * YN[0][0]() : 0) : R(q * H) * f(x / q, y / q, z / q);
+  }
+  // level enclosing 90% of the probability
+  const sq = Float32Array.from(vals, v => v * v).sort(); let tot = 0; for (let n = 0; n < sq.length; n++) tot += sq[n];
+  let acc = 0, lvl = 0; for (let n = sq.length - 1; n >= 0; n--) { acc += sq[n]; if (acc >= 0.9 * tot) { lvl = Math.sqrt(sq[n]); break; } }
+  return { vals, lvl };
+}
+function defaultSub(M) {
+  const open = M.occ.filter(o => o.c < 2 * (2 * o.l + 1));
+  const pick = (open.length ? open : M.occ).slice().sort((a, b) => b.l - a.l || b.n - a.n)[0];
+  return pick.key;
+}
+function orbMesh(o, i, N, opacity) {
+  const g = new THREE.Group(), { vals, lvl } = orbitalField(o, i, N);
+  [[1, PHASE_POS], [-1, PHASE_NEG]].forEach(([sgn, col]) => {
+    const geo = isoMesh(vals, N, lvl, sgn); if (!geo.attributes.position.count) return;
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.12, roughness: 0.38, metalness: 0.05, transparent: opacity < 1, opacity, side: THREE.DoubleSide });
+    orbMats.push(mat); g.add(new THREE.Mesh(geo, mat));
+  });
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.03, 20, 14), new THREE.MeshBasicMaterial({ color: 0xfcffa4 })));
+  return g;
+}
+function buildOrb(e) {
+  disposeGroup(orbGroup); orbGroup = null;
+  if (galleryGroup) { scene.remove(galleryGroup); galleryGroup.traverse(q => { if (q.geometry) q.geometry.dispose(); if (q.material) { if (q.material.map) q.material.map.dispose(); q.material.dispose(); } }); galleryGroup = null; }
+  orbMats.length = 0;
+  const M = atomModel(e);
+  if (!orbState.key || !M.occ.find(o => o.key === orbState.key)) orbState.key = defaultSub(M);
+  const o = M.occ.find(q => q.key === orbState.key);
+  const occd = o.occM.map((v, i) => ({ v, i })).filter(q => q.v > 0);
+  if (orbState.orb >= 0 || occd.length === 1) { // one orbital, large, rotating with the axes
+    const i = orbState.orb >= 0 ? orbState.orb : occd[0].i;
+    orbGroup = new THREE.Group(); orbGroup.add(orbMesh(o, i, o.l >= 2 ? 54 : 46, 0.95)); root.add(orbGroup);
+    return;
+  }
+  // several orbitals: side by side, each spinning in place, labeled
+  galleryGroup = new THREE.Group(); galleryGroup.userData.items = [];
+  const k = occd.length, cols = k <= 3 ? k : k <= 5 ? 3 : 4, rows = Math.ceil(k / cols);
+  const cell = Math.min(2.25 / cols, 1.95 / rows), s = cell * 0.42;
+  occd.forEach(({ v, i }, n) => {
+    const r = Math.floor(n / cols), inRow = Math.min(cols, k - r * cols), c = n - r * cols;
+    const x = (c - (inRow - 1) / 2) * cell, y = ((rows - 1) / 2 - r) * cell + 0.16;
+    const item = orbMesh(o, i, o.l >= 2 ? 40 : 44, 0.95); item.scale.setScalar(s); item.position.set(x, y, 0);
+    galleryGroup.add(item); galleryGroup.userData.items.push(item);
+    const lab = textSprite(`${ORB_NAMES[o.l][i]}${v === 1 ? '¹' : '²'}`, Math.min(0.1, cell * 0.14), v === 1 ? '#fcffa4' : '#dfe6ee');
+    lab.position.set(x, y - s * 1.12, 0.5); galleryGroup.add(lab);
+  });
+  scene.add(galleryGroup);
+}
+
+/* ---------- whole atom, cut open, shells evenly spaced ---------- */
+const wholeMats = [];
+function shellRatio(M, sh, dir) { // angular variation of this shell's electron amount (1 = average)
+  let s = 0;
+  M.occ.forEach(o => { if (o.shell !== sh.i) return; if (!o.aniso) s += o.c / (4 * Math.PI); else o.occM.forEach((v, i) => { if (v) { const y = YN[o.l][i](...dir); s += v * y * y; } }); });
+  return s / (sh.count / (4 * Math.PI));
+}
+function layerAmount(M, d) { // electrons per unit of mapped radius, all shells (spherical average)
+  const r = M.rOf(d), J = M.drdd(d); let s = 0;
+  M.occ.forEach(o => { const R = o.rd.R(r); s += o.c * R * R * r * r * J; });
+  return s;
+}
+function buildWhole(e) {
+  disposeGroup(wholeGroup); wholeMats.length = 0;
+  const M = atomModel(e);
+  wholeGroup = new THREE.Group();
+  const PHL = Math.PI * 1.5;
+  M.shells.forEach(sh => {
+    const geo = new THREE.SphereGeometry(sh.d, 96, 64, 0, PHL);
+    const hasAniso = M.occ.some(o => o.shell === sh.i && o.aniso);
+    if (hasAniso) {
+      const p = geo.attributes.position;
+      for (let v = 0; v < p.count; v++) {
+        const X = p.getX(v), Y = p.getY(v), Zt = p.getZ(v), q = Math.hypot(X, Y, Zt) || 1;
+        const ratio = shellRatio(M, sh, physDir(X / q, Y / q, Zt / q));
+        const s = Math.max(0.72, Math.min(1.5, 1 + 0.6 * (ratio - 1)));
+        p.setXYZ(v, X * s, Y * s, Zt * s);
+      }
+      geo.computeVertexNormals();
+    }
+    const [r, g, b] = shellColor(sh.i, M.K), col = new THREE.Color(r / 255, g / 255, b / 255);
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.2, roughness: 0.55, transparent: true, opacity: 0.26, side: THREE.DoubleSide, depthWrite: false });
+    wholeMats.push(mat);
+    wholeGroup.add(new THREE.Mesh(geo, mat));
+    const lab = textSprite(`${sh.letter} ${sh.count}`, 0.1);
+    const a = -0.35; lab.position.set(-Math.cos(a) * sh.d * 0.98, Math.sin(a) * sh.d * 0.98 - 0.04, 0.001);
+    wholeGroup.add(lab);
+  });
+  // the two cut faces show the Elektronium layers
+  const T = 256, cv = document.createElement('canvas'); cv.width = cv.height = T;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(T, T);
+  const amt = new Float32Array(T), RM = 1.0;
+  let mx = 0; for (let k = 0; k < T; k++) { amt[k] = layerAmount(M, (k + 0.5) / T * RM); if ((k + 0.5) / T > 0.02) mx = Math.max(mx, amt[k]); }
+  for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) {
+    const x = (i + 0.5) / T * 2 - 1, y = (j + 0.5) / T * 2 - 1, q = Math.hypot(x, y), p = (j * T + i) * 4;
+    if (q > 1) { img.data[p + 3] = 0; continue; }
+    const k = Math.min(T - 1, Math.floor(q * T / RM)), v = Math.min(1, Math.pow(amt[k] / mx, 0.5));
+    const [r, g, b] = infernoAt(v); img.data[p] = r; img.data[p + 1] = g; img.data[p + 2] = b; img.data[p + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(cv); tex.flipY = true;
+  [0, -Math.PI / 2].forEach(rot => {
+    const face = new THREE.Mesh(new THREE.CircleGeometry(RM, 96, Math.PI / 2, Math.PI), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0.96 }));
+    face.rotation.y = rot; wholeGroup.add(face);
+  });
+  const nuc = new THREE.Mesh(new THREE.SphereGeometry(0.035, 20, 14), new THREE.MeshBasicMaterial({ color: 0xfcffa4 }));
+  wholeGroup.add(nuc);
+  root.add(wholeGroup);
+}
+
+/* ---------- Elektronium: the whole atom as one continuous fluid (ray-marched) ---------- */
+const ELEK_VS = `varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const ELEK_FS = `
+precision highp float;
+varying vec3 vPos;
+uniform sampler2D uTex; uniform sampler2D uLut;
+uniform vec3 uCam; uniform float uL0, uL1, uJ0, uJ1, uLo, uHi, uMode, uCut, uTime, uPulse, uAl1, uAl2, uDens;
+uniform float uO1[7]; uniform float uO2[7];
+float dec(float row, float d) { vec4 t = texture2D(uTex, vec2(clamp(d / 1.1, 0.0, 1.0), (row + 0.5) / 4.0)); return (t.r * 255.0 * 256.0 + t.g * 255.0) / 65535.0; }
+float y2(float l, int i, vec3 u) {
+  float x = u.x, y = u.y, z = u.z, v = 0.0;
+  if (l < 1.5) { v = (i == 0) ? z : ((i == 1) ? x : y); v *= 0.48860251; }
+  else if (l < 2.5) { float c = 0.31539157;
+    if (i == 0) v = c * (3.0 * z * z - 1.0); else if (i == 1) v = c * 3.4641016 * x * z; else if (i == 2) v = c * 3.4641016 * y * z; else if (i == 3) v = c * 1.7320508 * (x * x - y * y); else v = c * 3.4641016 * x * y; }
+  else { float c = 0.37317633;
+    if (i == 0) v = c * z * (5.0 * z * z - 3.0); else if (i == 1) v = c * 1.2247449 * x * (5.0 * z * z - 1.0); else if (i == 2) v = c * 1.2247449 * y * (5.0 * z * z - 1.0);
+    else if (i == 3) v = c * 3.8729833 * z * (x * x - y * y); else if (i == 4) v = c * 7.7459667 * x * y * z; else if (i == 5) v = c * 1.5811388 * x * (x * x - 3.0 * y * y); else v = c * 1.5811388 * y * (3.0 * x * x - y * y); }
+  return v * v;
+}
+float aniso(float l, float o[7], vec3 u) { float s = 0.0; for (int i = 0; i < 7; i++) { if (float(i) > 2.0 * l) break; s += o[i] * y2(l, i, u); } return s; }
+void main() {
+  vec3 ro = uCam, rd = normalize(vPos - uCam);
+  float R = 1.08, b = dot(ro, rd), c = dot(ro, ro) - R * R, h = b * b - c;
+  if (h < 0.0) discard;
+  h = sqrt(h); float t0 = max(-b - h, 0.0), t1 = -b + h; if (t1 <= t0) discard;
+  const int STEPS = 128; float dt = (t1 - t0) / float(STEPS);
+  vec3 col = vec3(0.0); float T = 1.0; bool wasCut = false;
+  for (int s = 0; s < STEPS; s++) {
+    vec3 p = ro + rd * (t0 + (float(s) + 0.5) * dt); float d = length(p);
+    if (uCut > 0.5 && p.x < 0.0 && p.z < 0.0) { if (d < 1.0) wasCut = true; continue; }
+    vec3 u = d > 1e-5 ? p / d : vec3(0.0, 1.0, 0.0); vec3 ph = vec3(u.x, -u.z, u.y);
+    float q = exp(uL0 + dec(0.0, d) * (uL1 - uL0));
+    if (uAl1 > 0.5) q += exp(uL0 + dec(1.0, d) * (uL1 - uL0)) * aniso(uAl1, uO1, ph);
+    if (uAl2 > 0.5) q += exp(uL0 + dec(2.0, d) * (uL1 - uL0)) * aniso(uAl2, uO2, ph);
+    if (uMode > 0.5) q *= exp(uJ0 + dec(3.0, d) * (uJ1 - uJ0));
+    float v = uMode > 0.5 ? pow(clamp(q / exp(uHi), 0.0, 1.0), 0.75) : clamp((log(max(q, 1e-30)) - uLo) / (uHi - uLo), 0.0, 1.0);
+    v *= 1.0 - uPulse * 0.14 * (0.5 + 0.5 * sin(uTime * 2.2 - d * 9.0));
+    vec3 cc = texture2D(uLut, vec2(v, 0.5)).rgb;
+    if (wasCut) { col += T * 0.94 * cc; T *= 0.06; wasCut = false; if (T < 0.015) break; continue; }
+    float a = 1.0 - exp(-dt * uDens * (uMode > 0.5 ? pow(v, 3.0) : pow(v, 2.0)));
+    col += T * a * cc * 1.2; T *= 1.0 - a;
+    if (T < 0.015) break;
+  }
+  gl_FragColor = vec4(col, 1.0 - T);
+}`;
+function buildElek(e) {
+  if (elekMesh) { root.remove(elekMesh); elekMesh.geometry.dispose(); elekMesh.material.uniforms.uTex.value.dispose(); elekMesh.material.dispose(); }
+  const M = atomModel(e), W = 512, DM = 1.1;
+  const opens = M.occ.filter(o => o.aniso).slice(0, 2);
+  const rows = [new Float64Array(W), new Float64Array(W), new Float64Array(W), new Float64Array(W)];
+  const tot = new Float64Array(W);
+  for (let k = 0; k < W; k++) {
+    const d = (k + 0.5) / W * DM, r = M.rOf(d), J = r * r * M.drdd(d);
+    let s = 0, t = 0;
+    M.occ.forEach(o => { const R = o.rd.R(r), q = o.c * R * R / (4 * Math.PI); t += q; if (!opens.includes(o)) s += q; });
+    rows[0][k] = s; opens.forEach((o, i) => { const R = o.rd.R(r); rows[i + 1][k] = R * R; });
+    rows[3][k] = J; tot[k] = t;
+  }
+  const lg = v => Math.log(Math.max(v, 1e-300));
+  let L1 = -Infinity; for (let i = 0; i < 3; i++) for (let k = 0; k < W; k++) L1 = Math.max(L1, lg(rows[i][k]));
+  const L0 = L1 - 46;
+  let J0 = Infinity, J1 = -Infinity; for (let k = 0; k < W; k++) { const v = lg(rows[3][k]); J0 = Math.min(J0, v); J1 = Math.max(J1, v); }
+  const data = new Uint8Array(W * 4 * 4);
+  const put = (row, k, v) => { const u = Math.round(Math.max(0, Math.min(1, v)) * 65535), p = (row * W + k) * 4; data[p] = u >> 8; data[p + 1] = u & 255; data[p + 2] = 0; data[p + 3] = 255; };
+  for (let k = 0; k < W; k++) { for (let i = 0; i < 3; i++) put(i, k, (lg(rows[i][k]) - L0) / (L1 - L0)); put(3, k, (lg(rows[3][k]) - J0) / (J1 - J0 || 1)); }
+  const tex = new THREE.DataTexture(data, W, 4, THREE.RGBAFormat); tex.magFilter = tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
+  const kAt = d => Math.min(W - 1, Math.floor(d / DM * W));
+  // visual ranges: log density (near-nucleus to outer edge), or electrons per layer
+  const dLo = lg(tot[kAt(1.0)]) - 1.2, dHi = lg(tot[kAt(0.045)]);
+  let lHi = -Infinity; for (let k = kAt(0.02); k < kAt(1.0); k++) lHi = Math.max(lHi, lg(tot[k] * rows[3][k]));
+  const occArr = o => { const a = new Array(7).fill(0); if (o) o.occM.forEach((v, i) => a[i] = v); return a; };
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: ELEK_VS, fragmentShader: ELEK_FS, transparent: true, side: THREE.BackSide, depthWrite: false,
+    uniforms: {
+      uTex: { value: tex }, uLut: { value: lutTex }, uCam: { value: new THREE.Vector3() },
+      uL0: { value: L0 }, uL1: { value: L1 }, uJ0: { value: J0 }, uJ1: { value: J1 },
+      uLo: { value: dLo }, uHi: { value: dHi }, uMode: { value: 0 }, uCut: { value: 1 }, uTime: { value: 0 }, uPulse: { value: 1 }, uDens: { value: 7.5 },
+      uAl1: { value: opens[0] ? opens[0].l : 0 }, uAl2: { value: opens[1] ? opens[1].l : 0 },
+      uO1: { value: occArr(opens[0]) }, uO2: { value: occArr(opens[1]) }
     }
   });
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute('shell', new THREE.Float32BufferAttribute(shell, 1));
-  g.setAttribute('sub', new THREE.Float32BufferAttribute(sub, 1));
-  g.setAttribute('rnd', new THREE.Float32BufferAttribute(rnd, 1));
-  g.setAttribute('w', new THREE.Float32BufferAttribute(wt, 1));
-  const n = pos.length / 3;
-  glMat.uniforms.uAlpha.value = Math.min(0.85, Math.max(0.2, 55 / Math.sqrt(n)));
-  glMat.uniforms.uSize.value = n < 4000 ? 34 : n < 15000 ? 26 : 20;
-  cloud = new THREE.Points(g, glMat); root.add(cloud);
-  subList = occ;
+  mat.blending = THREE.CustomBlending; mat.blendSrc = THREE.OneFactor; mat.blendDst = THREE.OneMinusSrcAlphaFactor;
+  mat.userData = { dens: [dLo, dHi], layers: [lHi - 4.2, lHi] };
+  elekMesh = new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.3, 2.3), mat);
+  root.add(elekMesh);
+  applyElekState();
+}
+function applyElekState() {
+  if (!elekMesh) return;
+  const u = elekMesh.material.uniforms, r = elekState.layers ? elekMesh.material.userData.layers : elekMesh.material.userData.dens;
+  u.uCut.value = elekState.cut ? 1 : 0; u.uMode.value = elekState.layers ? 1 : 0; u.uLo.value = r[0]; u.uHi.value = r[1];
+  u.uDens.value = elekState.layers ? 3.2 : 4.0;
 }
 
-function buildBohr(e) {
-  if (bohrGroup) { root.remove(bohrGroup); bohrGroup.traverse(o => o.geometry && o.geometry.dispose()); }
-  bohrGroup = new THREE.Group();
-  const shells = {}; e.order.forEach(s => { const m = s.match(/(\d)([spdf])(\d+)/); shells[m[1]] = (shells[m[1]] || 0) + +m[3]; });
-  const ns = Object.keys(shells).map(Number).sort();
-  bohrGroup.userData.rings = [];
-  ns.forEach((n, idx) => {
-    const R = 0.16 + 0.85 * (idx + 1) / ns.length;
-    const ring = new THREE.Group();
-    ring.rotation.x = Math.PI / 2 + (idx % 2 ? 0.35 : -0.25) * (idx / ns.length);
-    ring.rotation.y = idx * 0.5;
-    const lg = new THREE.BufferGeometry().setFromPoints(Array.from({ length: 129 }, (_, i) => new THREE.Vector3(R * Math.cos(i / 128 * Math.PI * 2), R * Math.sin(i / 128 * Math.PI * 2), 0)));
-    const lm = new THREE.LineBasicMaterial({ color: 0x3f5a73, transparent: true, opacity: 0.8 });
-    ring.add(new THREE.Line(lg, lm));
-    const cnt = shells[n], ep = [], ec = [], esh = [], esub = [], er = [];
-    for (let i = 0; i < cnt; i++) { const a = i / cnt * Math.PI * 2; ep.push(R * Math.cos(a), R * Math.sin(a), 0); ec.push(0.5, 0.9, 1); esh.push(n); esub.push(-5); er.push(0); }
-    const eg = new THREE.BufferGeometry();
-    eg.setAttribute('position', new THREE.Float32BufferAttribute(ep, 3)); eg.setAttribute('color', new THREE.Float32BufferAttribute(ec, 3));
-    eg.setAttribute('shell', new THREE.Float32BufferAttribute(esh, 1)); eg.setAttribute('sub', new THREE.Float32BufferAttribute(esub, 1)); eg.setAttribute('rnd', new THREE.Float32BufferAttribute(er, 1)); eg.setAttribute('w', new THREE.Float32BufferAttribute(er.map(() => 1), 1));
-    const em = glMat.clone(); em.uniforms = THREE.UniformsUtils.clone(glMat.uniforms); em.uniforms.uSize.value = 110; em.uniforms.uAlpha.value = 0.95; em.uniforms.uScale = glMat.uniforms.uScale;
-    ring.add(new THREE.Points(eg, em));
-    ring.userData = { speed: 0.6 / (idx + 1) * (idx % 2 ? -1 : 1), lm, em, n };
-    bohrGroup.add(ring); bohrGroup.userData.rings.push(ring);
+/* ---------- Shells: Elektronium layers + radial density, poured in filling order ---------- */
+const shellCv = document.getElementById('shellCv'), shctx = shellCv.getContext('2d');
+let shellRAF = 0, lastShell = 0, pourStart = -1, shellPre = null;
+function madelung(occ) { return occ.slice().sort((a, b) => (a.n + a.l) - (b.n + b.l) || a.n - b.n); }
+function shellPrep(e) {
+  const M = atomModel(e), ND = 360, NR = 240;
+  const aD = M.occ.map(() => new Float32Array(ND)); // per-electron amount per mapped radius
+  for (let k = 0; k < ND; k++) { const d = (k + 0.5) / ND, r = M.rOf(d), J = M.drdd(d); M.occ.forEach((o, i) => { const R = o.rd.R(r); aD[i][k] = R * R * r * r * J; }); }
+  let wMax = 0; for (let k = 4; k < ND; k++) { let s = 0; M.occ.forEach((o, i) => s += o.c * aD[i][k]); wMax = Math.max(wMax, s); }
+  const rIn = Math.min(...M.occ.map(o => quantile(o.rd.tab, 0.01))), rOut = Math.max(...M.occ.map(o => quantile(o.rd.tab, 0.995)));
+  const x0 = Math.log10(rIn), x1 = Math.log10(rOut), gR = M.occ.map(() => new Float32Array(NR));
+  for (let k = 0; k < NR; k++) { const r = Math.pow(10, x0 + (x1 - x0) * k / (NR - 1)); M.occ.forEach((o, i) => { const R = o.rd.R(r); gR[i][k] = R * R * r * r * r * Math.LN10; }); }
+  let gMax = 0; for (let k = 0; k < NR; k++) { let s = 0; M.occ.forEach((o, i) => s += o.c * gR[i][k]); gMax = Math.max(gMax, s); }
+  return { M, ND, NR, aD, wMax, x0, x1, gR, gMax, order: madelung(M.occ), Z: e.Z };
+}
+function occAt(P, eNow) { // electrons in each subshell after pouring eNow electrons in filling order
+  const cur = new Map(); let left = eNow, active = null;
+  for (const o of P.order) { const put = Math.max(0, Math.min(o.c, left)); cur.set(o, put); if (put > 0 && put < o.c) active = o; if (put === o.c && left > 0 && left <= o.c) active = o; left -= put; }
+  return { cur, active };
+}
+function drawShells(now) {
+  const e = byZ(current); if (!shellPre || shellPre.Z !== e.Z) shellPre = shellPrep(e);
+  const P = shellPre, M = P.M, time = now / 1000;
+  const r = well.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2), W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+  if (shellCv.width !== W || shellCv.height !== H) { shellCv.width = W; shellCv.height = H; }
+  const top = (document.getElementById('ovTop').offsetHeight + 14) * dpr, chips = document.getElementById('shellChips');
+  const bot = (chips.hidden ? 12 : chips.offsetHeight + 16) * dpr, ax = 12 * dpr, aw = W - 24 * dpr, ah = H - top - bot;
+  shctx.fillStyle = '#05070a'; shctx.fillRect(0, 0, W, H);
+  // pour progress
+  const Tpour = Math.min(3.2, 0.3 + e.Z * 0.045) * 1000;
+  let prog = pourStart < 0 || reduce ? 1 : Math.min(1, (now - pourStart) / Tpour);
+  prog = 1 - Math.pow(1 - prog, 1.6);
+  const eNow = Math.round(prog * e.Z * 100) / 100, { cur, active } = occAt(P, eNow);
+  const label = (txt, x, y, size, align = 'left', color = '#f4f1ea') => { shctx.font = `${size}px "IBM Plex Mono", ui-monospace, monospace`; shctx.textAlign = align; shctx.fillStyle = 'rgba(0,0,0,.6)'; shctx.fillText(txt, x + dpr, y + dpr); shctx.fillStyle = color; shctx.fillText(txt, x, y); };
+  // ---- disc of layers
+  const chartH = Math.max(90 * dpr, ah * 0.34), discD = Math.min(aw, ah - chartH - 26 * dpr), cx = ax + aw / 2, cy = top + discD / 2;
+  const res = Math.max(80, Math.min(260, Math.round(discD / 1.6))), img = shctx.createImageData(res, res);
+  const cols = M.shells.map(s => shellColor(s.i, M.K)), K = M.K, occArr = M.occ.map(o => cur.get(o) || 0);
+  const anis = M.occ.map((o, i) => o.l > 0 && occArr[i] > 0 && occArr[i] < 2 * (2 * o.l + 1) ? hundOcc(o.l, Math.round(occArr[i])) : null);
+  const wS = new Float32Array(K);
+  for (let j = 0; j < res; j++) for (let i = 0; i < res; i++) {
+    const X = (i + 0.5) / res * 2 - 1, Yv = 1 - (j + 0.5) / res * 2, q = Math.hypot(X, Yv), p = (j * res + i) * 4;
+    if (q >= 1) { img.data[p + 3] = 0; continue; }
+    const k = Math.min(P.ND - 1, Math.floor(q * P.ND)); wS.fill(0); let W0 = 0;
+    const ux = q > 0 ? X / q : 0, uz = q > 0 ? Yv / q : 1;
+    M.occ.forEach((o, n) => {
+      const c = occArr[n]; if (!c) return;
+      let w = c * P.aD[n][k];
+      if (anis[n]) { let s = 0; anis[n].forEach((v, m) => { if (v) { const y = YN[o.l][m](ux, 0, uz); s += v * y * y; } }); w = P.aD[n][k] * s * 4 * Math.PI; }
+      wS[o.shell] += w; W0 += w;
+    });
+    if (W0 <= 0) { img.data[p] = img.data[p + 1] = img.data[p + 2] = 0; img.data[p + 3] = 255; continue; }
+    let br = Math.min(1, Math.pow(W0 / P.wMax, 0.55));
+    if (pulseOn && !reduce) br *= 0.88 + 0.12 * Math.sin(time * 2.2 - q * 9);
+    let rr = 0, gg = 0, bb = 0; for (let s = 0; s < K; s++) { const f = wS[s] / W0; rr += f * cols[s][0]; gg += f * cols[s][1]; bb += f * cols[s][2]; }
+    img.data[p] = rr * br; img.data[p + 1] = gg * br; img.data[p + 2] = bb * br; img.data[p + 3] = 255;
+  }
+  const off = document.createElement('canvas'); off.width = off.height = res; off.getContext('2d').putImageData(img, 0, 0);
+  shctx.imageSmoothingEnabled = true; shctx.imageSmoothingQuality = 'high';
+  shctx.drawImage(off, cx - discD / 2, cy - discD / 2, discD, discD);
+  shctx.fillStyle = '#fcffa4'; shctx.beginPath(); shctx.arc(cx, cy, 2.5 * dpr, 0, Math.PI * 2); shctx.fill();
+  const counts = M.shells.map(s => M.occ.reduce((t, o, n) => t + (o.shell === s.i ? occArr[n] : 0), 0));
+  M.shells.forEach(s => {
+    if (Math.round(counts[s.i]) <= 0) return;
+    const a = K === 1 ? -0.62 : -1.15 + 2.1 * s.i / (K - 1), x = cx + Math.cos(a) * s.d * discD / 2, y = cy + Math.sin(a) * s.d * discD / 2;
+    label(`${s.letter} ${Math.round(counts[s.i])}`, x + 4 * dpr, y, 10.5 * dpr);
   });
-  root.add(bohrGroup);
+  const caption = prog < 1 && active ? `filling ${active.n}${active.L}${sup(Math.round(cur.get(active)))} · ${Math.round(eNow)} of ${e.Z} electrons` : `${e.sym} · ${e.econf.replace(/([spdf])(\d+)/g, (m0, a, b) => a + sup(b))}`;
+  label(caption, ax, top + 12 * dpr, 11 * dpr);
+  // ---- radial density chart: electrons per ln r, stacked by shell, log-r axis
+  const gx = ax + 6 * dpr, gw = aw - 12 * dpr, gy1 = top + ah - 16 * dpr, gy0 = gy1 - chartH + 22 * dpr, gh = gy1 - gy0;
+  shctx.strokeStyle = '#2a323c'; shctx.lineWidth = dpr; shctx.beginPath(); shctx.moveTo(gx, gy1 + 0.5); shctx.lineTo(gx + gw, gy1 + 0.5); shctx.stroke();
+  const base = new Float32Array(P.NR), xs = k => gx + gw * k / (P.NR - 1), ys = v => gy1 - v / P.gMax * gh * 0.95;
+  const peaks = [];
+  M.shells.forEach(s => {
+    const layer = new Float32Array(P.NR);
+    M.occ.forEach((o, n) => { if (o.shell === s.i && occArr[n] > 0) for (let k = 0; k < P.NR; k++) layer[k] += occArr[n] * P.gR[n][k]; });
+    let pk = 0; for (let k = 1; k < P.NR; k++) if (layer[k] > layer[pk]) pk = k;
+    const [r0, g0, b0] = cols[s.i];
+    shctx.beginPath(); shctx.moveTo(xs(0), ys(base[0]));
+    for (let k = 0; k < P.NR; k++) shctx.lineTo(xs(k), ys(base[k] + layer[k]));
+    for (let k = P.NR - 1; k >= 0; k--) shctx.lineTo(xs(k), ys(base[k]));
+    shctx.closePath(); shctx.fillStyle = `rgba(${r0},${g0},${b0},0.85)`; shctx.fill();
+    if (layer[pk] > 0) peaks.push([s, pk, base[pk] + layer[pk]]);
+    for (let k = 0; k < P.NR; k++) base[k] += layer[k];
+  });
+  peaks.forEach(([s, pk, v]) => label(`${s.letter}`, xs(pk), ys(v) - 4 * dpr, 10 * dpr, 'center'));
+  for (let dec = Math.ceil(P.x0 + Math.log10(52.918)); dec <= Math.floor(P.x1 + Math.log10(52.918)); dec++) {
+    const k = (dec - Math.log10(52.918) - P.x0) / (P.x1 - P.x0) * (P.NR - 1);
+    shctx.fillStyle = '#3a4350'; shctx.fillRect(xs(k), gy1, dpr, 4 * dpr);
+    label(`${Math.pow(10, dec) >= 1 ? Math.pow(10, dec) : Math.pow(10, dec).toFixed(-dec)} pm`, xs(k), gy1 + 13 * dpr, 9.5 * dpr, 'center', '#8a96a6');
+  }
+  label('radial density · one hump per shell · area = electrons', gx, gy0 - 6 * dpr, 9.5 * dpr, 'left', '#8a96a6');
+  return prog < 1;
+}
+function shellLoop(now) {
+  shellRAF = 0; if (mode !== 'shells') return;
+  let pouring = true;
+  if (now - lastShell > 33) { pouring = drawShells(now); lastShell = now; }
+  if ((pulseOn && !reduce) || pouring) shellRAF = requestAnimationFrame(shellLoop);
+}
+function kickShells(pour) {
+  if (mode !== 'shells') return;
+  if (pour && !reduce) pourStart = performance.now();
+  cancelAnimationFrame(shellRAF); lastShell = 0; drawShells(performance.now());
+  shellRAF = requestAnimationFrame(shellLoop);
 }
 
+/* ---------- modes, chips, render loop ---------- */
 const NOTES = {
   slice: 'Each square is a cut through the nucleus in the xz-plane, colored by how likely the electron is to be found there (black never, white most likely). The angular shape of a p, d or f orbital is the same in every atom; what the element changes is the radial part — how big the orbital is, where its dark nodal rings fall, and how deep it dips toward the nucleus. Radial functions come from a self-consistent density-functional calculation of each atom, so True size shows real proportions: inner shells shrink to specks as the nuclear charge grows. m and −m look the same, so only m ≥ 0 is shown. Tap a square to enlarge it.',
-  cloud: 'Drag to rotate. Tap a subshell to isolate it. Lobes are the real (px, dxy …) orbitals built from each atom’s self-consistent radial wavefunctions. Distance from the nucleus is rescaled so the shells sit evenly spaced; filled inner shells are drawn dimmer. Bright and dark lobes have opposite wavefunction sign.',
-  bohr: 'The classic shell picture: how many electrons sit in each shell, K through Q. It is a bookkeeping diagram, not a real electron path.'
+  orb: 'Each shape is the surface that holds 90% of an electron’s probability, built from the atom’s own radial wavefunction. Orange and violet are the two opposite signs of the wavefunction; inner lobes come from radial nodes. A subshell’s occupied orbitals are shown side by side (yellow labels are unpaired electrons); tap one to see it large with axes. Whole atom shows every shell as a nested layer, cut open, with shells evenly spaced; a partly filled subshell pushes its shell into real bulges (shown in one of several equivalent orientations). Drag to rotate.',
+  elek: 'Elektronium, from the Karlsruhe Physics Course: all of the atom’s electrons drawn as one continuous fluid whose density is the quantum probability density. Colors follow a log scale, and distances are rescaled so the shells sit evenly spaced. Layers shows how much Elektronium sits at each distance, so the shells glow as separate layers. Partly filled subshells make real bulges. Drag to rotate.',
+  shells: 'No dots: each shell is a layer of Elektronium, tinted from K (innermost) outward, with shells evenly spaced. The graph shows the radial density on a true, logarithmic distance scale — one hump per shell, and each hump’s area is its electron count. Replay pours the electrons in the order subshells fill (1s, 2s, 2p, 3s, 3p, 4s, 3d …); the shapes shown during filling use the finished atom’s orbitals.'
 };
+const TAGS = { slice: 'PROBABILITY DENSITY |ψ|² · xz-PLANE', orb: 'ORBITAL SHAPES · 3D', elek: 'ELEKTRONIUM', shells: 'SHELLS · ELEKTRONIUM LAYERS' };
+function chipBtn(box, txt, pressed, fn, title) { const b = document.createElement('button'); b.textContent = txt; b.setAttribute('aria-pressed', pressed); if (title) b.title = title; b.onclick = fn; box.appendChild(b); return b; }
+function renderOrbChips() {
+  const box = document.getElementById('orbChips'); box.innerHTML = '';
+  const e = byZ(current), M = atomModel(e);
+  chipBtn(box, 'Whole atom', orbState.whole, () => { orbState.whole = !orbState.whole; applyMode(); }, 'All shells as nested layers, cut open');
+  if (orbState.whole) return;
+  const subs = madelung(M.occ).slice(-6), chosen = M.occ.find(q => q.key === orbState.key);
+  if (chosen && !subs.includes(chosen)) subs.unshift(chosen);
+  subs.forEach(o => chipBtn(box, `${o.n}${o.L}${sup(o.c)}`, o.key === orbState.key, () => { orbState.key = o.key; orbState.orb = -1; dirty.orb = true; applyMode(); }));
+  const o = M.occ.find(q => q.key === orbState.key);
+  if (o && o.l > 0) {
+    const occd = o.occM.map((v, i) => ({ v, i })).filter(q => q.v > 0);
+    if (occd.length > 1) {
+      const sel = document.createElement('select'); sel.id = 'orbPick'; sel.setAttribute('aria-label', 'Which orbital to show');
+      sel.innerHTML = `<option value="-1">Side by side</option>` + occd.map(({ v, i }) => `<option value="${i}" ${orbState.orb === i ? 'selected' : ''}>${ORB_NAMES[o.l][i]}${v === 1 ? '¹ (unpaired)' : '²'}</option>`).join('');
+      sel.style.cssText = 'padding:4px 6px;font:12px var(--f-data);background:rgba(20,26,34,.85);color:#dbe4ee;border:1px solid #2a3542;border-radius:6px';
+      sel.onchange = () => { orbState.orb = +sel.value; dirty.orb = true; applyMode(); };
+      box.appendChild(sel);
+    }
+  }
+}
+function renderElekChips() {
+  const box = document.getElementById('elekChips'); box.innerHTML = '';
+  chipBtn(box, 'Cutaway', elekState.cut, () => { elekState.cut = !elekState.cut; applyElekState(); renderElekChips(); }, 'Cut a wedge out to see inside');
+  chipBtn(box, 'Layers', elekState.layers, () => { elekState.layers = !elekState.layers; applyElekState(); renderElekChips(); }, 'Show how much Elektronium sits at each distance');
+}
+function renderShellChips() {
+  const box = document.getElementById('shellChips'); box.innerHTML = '';
+  chipBtn(box, 'Replay filling', false, () => kickShells(true), 'Pour the electrons in again, in filling order');
+}
+let lastView = '';
 function applyMode() {
-  const slice = mode === 'slice';
-  if (cloud) cloud.visible = mode === 'cloud';
-  if (bohrGroup) bohrGroup.visible = mode === 'bohr';
-  ['Slice', 'Cloud', 'Bohr'].forEach(k => document.getElementById('mode' + k).setAttribute('aria-pressed', mode === k.toLowerCase()));
-  canvas.hidden = slice || !haveGL; sliceCv.hidden = !slice;
-  document.getElementById('subChips').hidden = mode !== 'cloud';
-  document.getElementById('sliceChips').hidden = !slice;
-  document.getElementById('wellTag').textContent = slice ? 'PROBABILITY DENSITY |ψ|² · xz-PLANE' : mode === 'cloud' ? 'REAL ORBITALS · 3D' : 'SHELL MODEL · K L M N O P Q';
+  const gl = mode === 'orb' || mode === 'elek';
+  const view = mode === 'elek' ? 'cut' : mode === 'orb' && orbState.whole ? 'cut' : mode === 'orb' ? 'orb' : '';
+  if (root && view && view !== lastView) { if (view === 'cut') root.rotation.set(0.45, 2.0, 0); else root.rotation.set(0.42, -0.62, 0); }
+  if (view) lastView = view;
+  ['Slice', 'Orb', 'Elek', 'Shells'].forEach(k => document.getElementById('mode' + k).setAttribute('aria-pressed', mode === k.toLowerCase()));
+  canvas.hidden = !gl || !haveGL; sliceCv.hidden = mode !== 'slice'; shellCv.hidden = mode !== 'shells';
+  document.getElementById('sliceChips').hidden = mode !== 'slice';
+  document.getElementById('orbChips').hidden = mode !== 'orb';
+  document.getElementById('elekChips').hidden = mode !== 'elek';
+  document.getElementById('shellChips').hidden = mode !== 'shells';
+  document.getElementById('wellTag').textContent = TAGS[mode];
   document.getElementById('wellNote').textContent = NOTES[mode];
-  if (slice) { renderSliceChips(); buildSlices(); kickSlice(); }
+  const e = byZ(current);
+  if (mode === 'slice') { renderSliceChips(); buildSlices(); kickSlice(); }
+  if (mode === 'orb' && haveGL) {
+    if (orbState.whole && dirty.whole) { buildWhole(e); dirty.whole = false; }
+    if (!orbState.whole && dirty.orb) { buildOrb(e); dirty.orb = false; }
+    renderOrbChips();
+  }
+  if (mode === 'elek' && haveGL) { if (dirty.elek) { buildElek(e); dirty.elek = false; } renderElekChips(); }
+  if (orbGroup) orbGroup.visible = mode === 'orb' && !orbState.whole;
+  if (galleryGroup) galleryGroup.visible = mode === 'orb' && !orbState.whole;
+  if (wholeGroup) wholeGroup.visible = mode === 'orb' && orbState.whole;
+  if (elekMesh) elekMesh.visible = mode === 'elek';
+  if (axesGroup) axesGroup.visible = mode === 'orb' && !orbState.whole && !galleryGroup;
+  if (mode === 'shells') { renderShellChips(); kickShells(dirty.shells); dirty.shells = false; }
 }
-function renderChips() {
-  const box = document.getElementById('subChips');
-  box.innerHTML = '';
-  const all = document.createElement('button'); all.textContent = 'All'; all.setAttribute('aria-pressed', isolate < 0); all.onclick = () => setIso(-1); box.appendChild(all);
-  subList.forEach((o, i) => {
-    const b = document.createElement('button'); b.className = 'chip';
-    const c = LCOL[o.l].map(v => Math.round(v * 255)).join(',');
-    b.innerHTML = `<span class="dot" style="background:rgb(${c})"></span>${o.n}${o.l}${sup(o.c)}`;
-    b.setAttribute('aria-pressed', isolate === i); b.title = ORB_NAMES[LNUM[o.l]].slice(0, Math.min(o.c, 2 * LNUM[o.l] + 1)).join(', ');
-    b.onclick = () => setIso(isolate === i ? -1 : i); box.appendChild(b);
-  });
-}
-function setIso(i) { isolate = i; glMat.uniforms.uIso.value = i; renderChips(); }
 
 let t0 = performance.now(), frozen = 0;
 function loop(now) {
-  const t = (now - t0) / 1000;
-  const time = pulseOn && !reduce ? t : frozen;
-  glMat.uniforms.uTime.value = time; glMat.uniforms.uPulse.value = pulseOn && !reduce ? 1 : 0;
-  if (nucleus) { nucleus.material.uniforms.uTime.value = time * 1.6; nucleus.material.uniforms.uPulse.value = glMat.uniforms.uPulse.value; }
-  if (autoSpin) root.rotation.y += 0.0025;
-  if (bohrGroup && bohrGroup.visible) bohrGroup.userData.rings.forEach(r => {
-    r.children[1].rotation.z = t * r.userData.speed;
-    r.userData.em.uniforms.uTime.value = time; r.userData.em.uniforms.uPulse.value = glMat.uniforms.uPulse.value;
-    const p = 0.5 + 0.5 * Math.sin(time * 2.3 - r.userData.n * 0.9); r.userData.lm.opacity = pulseOn ? 0.35 + 0.6 * p : 0.7;
-  });
-  if (mode !== 'slice') renderer.render(scene, camera);
+  if (mode === 'orb' || mode === 'elek') {
+    const t = (now - t0) / 1000, time = pulseOn && !reduce ? t : frozen, pz = pulseOn && !reduce ? 1 : 0;
+    if (autoSpin) root.rotation.y += 0.0028;
+    if (galleryGroup && galleryGroup.visible) galleryGroup.userData.items.forEach(it => it.rotation.copy(root.rotation));
+    if (mode === 'orb' && !orbState.whole) orbMats.forEach(m => { m.emissiveIntensity = 0.1 + pz * 0.22 * (0.5 + 0.5 * Math.sin(time * 2.2)); });
+    if (mode === 'orb' && orbState.whole) wholeMats.forEach((m, i) => { m.emissiveIntensity = 0.16 + pz * 0.35 * Math.max(0, Math.sin(time * 2.2 - i * 0.9)); });
+    if (mode === 'elek' && elekMesh) {
+      const u = elekMesh.material.uniforms; u.uTime.value = time; u.uPulse.value = pz;
+      root.updateMatrixWorld(); u.uCam.value.copy(elekMesh.worldToLocal(camera.position.clone()));
+    }
+    renderer.render(scene, camera);
+  }
   requestAnimationFrame(loop);
 }
-document.getElementById('modeCloud').onclick = () => { mode = 'cloud'; applyMode(); };
 document.getElementById('modeSlice').onclick = () => { mode = 'slice'; applyMode(); };
-document.getElementById('modeBohr').onclick = () => { mode = 'bohr'; applyMode(); };
-document.getElementById('pulseBtn').onclick = ev => { pulseOn = !pulseOn; frozen = (performance.now() - t0) / 1000; ev.currentTarget.setAttribute('aria-pressed', pulseOn); kickSlice(); };
+document.getElementById('modeOrb').onclick = () => { mode = 'orb'; applyMode(); };
+document.getElementById('modeElek').onclick = () => { mode = 'elek'; applyMode(); };
+document.getElementById('modeShells').onclick = () => { mode = 'shells'; dirty.shells = true; applyMode(); };
+document.getElementById('pulseBtn').onclick = ev => { pulseOn = !pulseOn; frozen = (performance.now() - t0) / 1000; ev.currentTarget.setAttribute('aria-pressed', pulseOn); kickSlice(); if (mode === 'shells') kickShells(false); };
+new ResizeObserver(() => { if (mode === 'shells') kickShells(false); }).observe(well);
 
 
 /* ---------- self-consistent radial wavefunctions (LDA atom, computed offline) ---------- */
@@ -1009,11 +1362,11 @@ function select(z, zoom) {
   renderStats(e);
   if (zoom) { animateTo(focusBox(e)); highlightSeries(e.series); }
   sliceState.sel = -1; sliceState.outer = null;
-  if (haveGL) { isolate = -1; glMat.uniforms.uIso.value = -1; buildCloud(e); buildBohr(e); renderChips(); }
+  Object.keys(dirty).forEach(k => { dirty[k] = true; }); orbState.key = null; orbState.orb = -1; shellPre = null;
   applyMode();
 }
 if (haveGL) initGL();
-else { document.getElementById('modeCloud').hidden = true; document.getElementById('modeBohr').hidden = true; }
+else { document.getElementById('modeOrb').hidden = true; document.getElementById('modeElek').hidden = true; }
 select(26, false);
 })();
 </script>

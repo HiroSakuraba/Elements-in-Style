@@ -8,11 +8,12 @@ An interactive periodic table laid out as a spiral, with a pulsing electron-orbi
 
 - **Spiral table.** Each turn of the spiral is one period, winding outward from hydrogen at the center. Elements in the same group sit on the same ray. The lanthanides and actinides branch off between groups 2 and 3 into two outer arcs, in the spirit of J. F. Hyde's 1975 chart *The chemical elements and their periodic relationships*.
 - **Focus on click.** Click an element and the spiral zooms to it and dims everything outside its chemical family. You can scroll or pinch to zoom, drag to pan, use ← / → to step through atomic numbers, or pick from the element menu.
-- **Orbital viewer, three ways:**
+- **Orbital viewer, four ways:**
   - **2D density.** Textbook probability-density slices, |ψ|² in the xz-plane, labeled (n, l, m) — one square for each occupied orbital. **True size** puts all of an atom's orbitals on one scale, so the inner shells shrink to specks as nuclear charge grows. **Fit each** enlarges every orbital to fill its square. **Hydrogen n ≤ 4** shows the classic hydrogen atlas.
-  - **3D.** A rotating point cloud of the real orbitals (px, dxy and so on), colored by subshell and by the sign of the wavefunction.
-  - **Shells.** The classic Bohr-style count of electrons in shells K through Q.
-  - All three views pulse. Pulsing can be switched off, and it stops automatically if your system asks for reduced motion.
+  - **3D.** Solid, lit orbital shapes: the surface holding 90% of the electron's probability, in two colors for the two signs of the wavefunction. A subshell's orbitals are shown side by side, or one at a time with axes. **Whole atom** shows every shell as a nested layer, cut open, with the shells evenly spaced; a partly filled subshell pushes its shell into real bulges.
+  - **Elektronium.** The idea comes from the Karlsruhe Physics Course: all of the atom's electrons are drawn as one continuous glowing fluid whose density is the quantum probability density. The fluid is ray-marched on the GPU and can be cut open. **Layers** shows how much fluid sits at each distance, so the shells glow as separate layers.
+  - **Shells.** No point electrons. Each shell is a tinted layer of Elektronium, and a radial density graph shows one hump per shell (area = electron count). **Replay filling** pours the electrons in, in the order subshells fill.
+  - All views pulse. Pulsing can be switched off, and it stops automatically if your system asks for reduced motion.
 - **Statistics drop-downs:**
   - Physical and thermal: melting and boiling point, density, heat capacity, conductivity, crystal structure.
   - Atomic: radii, electronegativity, electron affinity, oxidation states, and a chart of successive ionization energies.
