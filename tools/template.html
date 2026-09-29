@@ -122,6 +122,24 @@ tr.stable td:first-child { color: var(--accent); }
 .sub-b .cell { width: 24px; height: 26px; border: 1px solid var(--ink-3); margin-left: -1px; display: grid; place-items: center; font: 13px/1 var(--f-data); color: var(--ink); }
 .sub-b span { font: 11px var(--f-data); color: var(--ink-2); }
 p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
+.hist { background: var(--bg-2); border: 1px solid var(--rule); border-radius: 12px; margin: 0 0 16px; }
+.hist > summary { padding: 12px 14px; border: 0; }
+.hist > summary .when { font: 13px var(--f-data); color: var(--accent); letter-spacing: 0; text-transform: none; margin-left: auto; }
+.hist .hbody { padding: 0 14px 14px; display: grid; gap: 12px; }
+.hist .lead { font: 400 19px/1.3 var(--f-display); letter-spacing: .02em; margin: 0; text-wrap: balance; }
+.hist .lead small { display: block; font: 12px var(--f-data); color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+.hist .row { display: grid; gap: 2px; }
+.hist .row b { font: 500 11px var(--f-data); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.hist .row span { font-size: 14px; color: var(--ink); }
+.hist .fact { border-top: 1px dashed var(--ink-3); padding-top: 12px; }
+.hist .fact b { color: var(--accent); }
+.hist .fact span { font: 400 16px/1.45 var(--f-display); letter-spacing: .01em; }
+.tl { width: 100%; height: auto; display: block; }
+.tl .ax { stroke: var(--ink-3); stroke-width: 1; }
+.tl .tk { fill: var(--ink-3); opacity: .45; }
+.tl .me { fill: var(--accent); }
+.tl text { fill: var(--ink-3); font: 10px var(--f-data); }
+.tl .lbl { fill: var(--ink); font: 11px var(--f-data); }
 
 [hidden] { display: none !important; }
 .well canvas#slice { cursor: pointer; }
@@ -177,6 +195,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
         <div class="ov b" id="sliceChips"></div>
       </div>
       <p class="wellnote" id="wellNote">Drag to rotate. Tap a subshell to isolate it. Lobes are hydrogen-like orbitals scaled by each subshell’s Slater effective charge. Distance from the nucleus is rescaled so the shells sit evenly spaced; filled inner shells are drawn dimmer. Bright and dark lobes have opposite wavefunction sign.</p>
+      <details class="hist" id="hist" open><summary>History<span class="when" id="histWhen"></span></summary><div class="hbody" id="histBody"></div></details>
       <div id="stats"></div>
     </aside>
   </main>
@@ -184,6 +203,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 
 <script id="data" type="application/json">__DATA__</script>
 <script id="rad" type="application/json">__RAD__</script>
+<script id="hist-data" type="application/json">__HIST__</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
@@ -382,7 +402,7 @@ document.addEventListener('keydown', ev => {
 
 /* ---------- stats panel ---------- */
 const idcard = document.getElementById('idcard'), stats = document.getElementById('stats');
-const openState = { overview: true, thermal: true, atomic: false, magnetic: true, isotopes: true, config: false, history: false };
+const openState = { overview: true, thermal: true, atomic: false, magnetic: true, isotopes: true, config: false };
 let showAllIso = false;
 const val = (v, unit = '', d) => v == null || v === '' ? '<span class="na">—</span>' : `${typeof v === 'number' ? fmt(v, d) : esc(v)}${unit ? ' ' + unit : ''}`;
 const temp = K => K == null ? '<span class="na">—</span>' : `${fmt(K, 5)} K <span class="na">(${(K - 273.15).toFixed(1)} °C)</span>`;
@@ -406,7 +426,7 @@ function renderStats(e) {
     ['Group · period · block', `${grp ?? 'f-block'} · ${e.period} · ${e.block}`],
     ['Phase at 25 °C', val(e.phase)], ['Radioactive', e.radioactive ? 'Yes' : 'No'],
     ['Crustal abundance', e.crust != null ? `${fmt(e.crust)} mg/kg` : '<span class="na">—</span>']
-  ]) + (e.desc ? `<p class="desc">${esc(e.desc)}</p>` : '');
+  ]) + (e.desc ? `<p class="desc">${esc(e.desc)}</p>` : '') + (e.uses ? `<p class="desc"><b>Uses.</b> ${esc(e.uses)}</p>` : '');
 
   const thermal = kv([
     ['Melting point', temp(e.mp)], ['Boiling point', temp(e.bp)],
@@ -474,10 +494,6 @@ function renderStats(e) {
     ['Effective charge (Slater)', Object.entries(e.zeff).map(([k, v]) => `${k} ${v}`).join(', ')]
   ]) + boxes + `<div class="tablewrap" style="max-height:260px"><table><thead><tr><th>Subshell</th><th>e⁻</th><th>Energy (eV)</th><th>⟨r⟩ (pm)</th></tr></thead><tbody>${e.order.map(s => { const m = s.match(/(\d)([spdf])(\d+)/), rd = radFor(e.Z, m[1] + m[2]); return `<tr><td>${m[1]}${m[2]}</td><td>${m[3]}</td><td>${fmt(rd.E, 4)}</td><td>${fmt(rd.rbar * 52.918, 3)}</td></tr>`; }).join('')}</tbody></table></div><p class="note">Orbital energies and mean radii from a self-consistent local-density calculation of the free atom (non-relativistic, so the heaviest elements are approximate).</p>` + `<p class="note">Boxes show the outer subshells filled by Hund’s rule — each orbital takes one electron before any pairs up. Unpaired arrows are what give the atom its magnetic moment.</p>`;
 
-  const history = kv([
-    ['Discovered', e.disc_year ? e.disc_year : 'Known since antiquity or undated'],
-    ['Discoverers', val(e.discoverers)], ['Name origin', val(e.origin)]
-  ]) + (e.uses ? `<p class="desc"><b>Uses.</b> ${esc(e.uses)}</p>` : '');
 
   stats.innerHTML =
     section('overview', 'Overview', '', overview) +
@@ -485,12 +501,46 @@ function renderStats(e) {
     section('atomic', 'Atomic properties', e.en ? `χ ${e.en}` : '', atomic) +
     section('magnetic', 'Magnetism', `${m.muS} μB`, magnetic) +
     section('isotopes', 'Isotopes &amp; half-life', `${known} known`, iso) +
-    section('config', 'Electron configuration', `${m.unpaired} unpaired`, config) +
-    section('history', 'Discovery', e.disc_year || '', history);
+    section('config', 'Electron configuration', `${m.unpaired} unpaired`, config);
+  renderHistory(e);
   stats.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => { openState[d.dataset.k] = d.open; }));
   const it = document.getElementById('isoToggle');
   if (it) it.onclick = () => { showAllIso = !showAllIso; renderStats(e); };
 }
+
+/* ---------- history panel ---------- */
+const HIST = JSON.parse(document.getElementById('hist-data').textContent);
+const KIND = { known: 'Known since', discovered: 'Discovered', synthesized: 'First synthesized' };
+function tlX(t) { // compressed prehistory on the left, 1600–2020 linear on the right
+  return t < 1600 ? 4 + (t + 10000) / 11600 * 60 : 70 + (t - 1600) / 420 * 326;
+}
+function renderHistory(e) {
+  const h = HIST[e.Z]; if (!h) return;
+  const before = Object.values(HIST).filter(o => o.t < h.t).length;
+  document.getElementById('histWhen').textContent = h.year;
+  const ticks = Object.entries(HIST).map(([z, o]) => `<rect class="tk" x="${(tlX(o.t) - 0.75).toFixed(1)}" y="16" width="1.5" height="12"></rect>`).join('');
+  const mx = tlX(h.t), anchor = mx > 330 ? 'end' : mx < 60 ? 'start' : 'middle';
+  const svgTL = `<svg class="tl" viewBox="0 0 400 50" role="img" aria-label="Discovery timeline: ${esc(e.name)}, ${esc(h.year)}, among all 118 elements">
+    <line class="ax" x1="4" y1="28" x2="396" y2="28"></line>
+    <line class="ax" x1="66" y1="12" x2="66" y2="32" stroke-dasharray="2 2"></line>
+    ${ticks}
+    <circle class="me" cx="${mx.toFixed(1)}" cy="22" r="5"></circle>
+    <text class="lbl" x="${mx.toFixed(1)}" y="9" text-anchor="${anchor}">${esc(e.sym)} · ${esc(h.year)}</text>
+    <text x="4" y="44">prehistory</text>
+    ${[1700, 1800, 1900, 2000].map(y => `<text x="${tlX(y).toFixed(1)}" y="44" text-anchor="middle">${y}</text>`).join('')}
+  </svg>`;
+  const row = (k, v) => v ? `<div class="row"><b>${k}</b><span>${esc(v)}</span></div>` : '';
+  document.getElementById('histBody').innerHTML = `
+    <p class="lead"><small>${KIND[h.kind]}</small>${esc(h.year)}</p>
+    ${row(h.kind === 'synthesized' ? 'Made by' : h.kind === 'known' ? 'Who' : 'Discovered by', h.who)}
+    ${row('Where', h.where)}
+    ${row(h.kind === 'synthesized' ? 'How it was made' : 'How it was found', h.how)}
+    ${row('Earlier and alternative names', h.names)}
+    ${row('Name origin', e.origin)}
+    <div class="row">${svgTL}<span class="hint" style="font-size:12px">${h.kind === 'known' ? `One of the ${Object.values(HIST).filter(o => o.kind === 'known').length} elements people used long before chemistry existed.` : `${before} of the 118 elements were already known before this one.`} Each tick is one element.</span></div>
+    <div class="row fact"><b>Fun fact</b><span>${esc(h.fact)}</span></div>`;
+}
+
 function shellCounts(e) {
   const c = {}; e.order.forEach(s => { const m = s.match(/(\d)([spdf])(\d+)/); c[m[1]] = (c[m[1]] || 0) + +m[3]; });
   return Object.keys(c).sort().map(n => `${'KLMNOPQ'[n - 1]} ${c[n]}`);

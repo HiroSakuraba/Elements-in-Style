@@ -19,7 +19,15 @@ An interactive periodic table laid out as a spiral, with a pulsing electron-orbi
   - Magnetism: unpaired electrons, ground-state term, spin-only and free-atom magnetic moments, bulk magnetic order, nuclear moments.
   - Isotopes: every known isotope with abundance, half-life, spin, magnetic moment and decay modes.
   - Electron configuration, with orbital box diagrams and per-subshell orbital energies and radii.
-  - Discovery history.
+
+
+- **History panel.** A separate panel for each element gives:
+  - when it was discovered, or first synthesized for man-made elements
+  - who found it, where, and how
+  - earlier and alternative names, such as glucinium, columbium, hahnium and the ununoctium-style placeholders
+  - where its name comes from
+  - a fun fact
+  - a timeline placing it among all 118 elements
 
 ## How the orbitals are computed
 
@@ -56,6 +64,7 @@ cd tools
 pip install mendeleev
 python3 extract_elements.py   # element and isotope data -> elements.json
 node lda_atoms.js             # self-consistent radial wavefunctions -> radial.json (about 30 s)
+python3 history.py            # discovery history and fun facts -> history.json
 python3 build.py              # template.html + data -> ../index.html
 ```
 
@@ -66,6 +75,7 @@ index.html              the whole site (HTML, CSS, JS and embedded data)
 tools/template.html     page source before the data is embedded
 tools/extract_elements.py
 tools/lda_atoms.js
+tools/history.py        discovery history, earlier names and fun facts for all 118 elements
 tools/build.py
 .nojekyll               tells GitHub Pages to serve files as-is
 ```
