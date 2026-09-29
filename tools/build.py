@@ -15,7 +15,8 @@ history = json.load(open('history.json'))
 atoms = {}
 for z, rec in radial['atoms'].items():
     atoms[z] = {k: {'E': v['E'], 'rbar': v['rbar'], 's': v['s'],
-                    'b': base64.b64encode(struct.pack('<%dh' % len(v['q']), *v['q'])).decode()}
+                    'b': base64.b64encode(struct.pack('<%dh' % len(v['q']), *v['q'])).decode(),
+                    **({'from': v['from'], 'to': v['to']} if k == 'x' else {})}
                 for k, v in rec.items()}
 rad = json.dumps({'XA': radial['XA'], 'DX': radial['DX'], 'NG': radial['NG'], 'atoms': atoms}, separators=(',', ':'))
 data = json.dumps(elements, separators=(',', ':'), ensure_ascii=False).replace('</', '<\\/')

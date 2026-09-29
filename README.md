@@ -12,6 +12,7 @@ An interactive periodic table laid out as a spiral, with a pulsing electron-orbi
   - **2D density.** Textbook probability-density slices, |ψ|² in the xz-plane, labeled (n, l, m) — one square for each occupied orbital. **True size** puts all of an atom's orbitals on one scale, so the inner shells shrink to specks as nuclear charge grows. **Fit each** enlarges every orbital to fill its square. **Hydrogen n ≤ 4** shows the classic hydrogen atlas.
   - **3D.** Solid, lit orbital shapes: the surface holding 90% of the electron's probability, in two colors for the two signs of the wavefunction. A subshell's orbitals are shown side by side, or one at a time with axes. **Whole atom** shows every shell as a nested layer, cut open, with the shells evenly spaced; a partly filled subshell pushes its shell into real bulges.
   - **Elektronium.** The idea comes from the Karlsruhe Physics Course: all of the atom's electrons are drawn as one continuous glowing fluid whose density is the quantum probability density. The fluid is ray-marched on the GPU and can be cut open. **Layers** shows how much fluid sits at each distance, so the shells glow as separate layers.
+    **Excite** follows the outermost electron as it absorbs light, jumps to a higher orbital, and falls back. While the electron is between the two states, its Elektronium sloshes back and forth at the light's frequency, slowed down roughly 10¹⁴–10¹⁵ times; once it settles in either state, it holds still. The panel shows the transition (for example sodium 3s → 3p), the model's wavelength, and the measured wavelength of that spectral line where it is well known, with a swatch of the light's color.
   - **Shells.** No point electrons. Each shell is a tinted layer of Elektronium, and a radial density graph shows one hump per shell (area = electron count). **Replay filling** pours the electrons in, in the order subshells fill.
   - All views pulse. Pulsing can be switched off, and it stops automatically if your system asks for reduced motion.
 - **Statistics drop-downs:**
@@ -41,7 +42,7 @@ To get that radial part right for each element, `tools/lda_atoms.js` solves the 
 - The radial Schrödinger equation is integrated with the Numerov method on a logarithmic grid.
 - The starting potential is Thomas–Fermi.
 
-The results reproduce the well-known features of real atoms. Iron's 3d orbital sits inside its 4s, and the 4f orbitals of the lanthanides pull in tight below the 5s and 5p shells. The resulting wavefunctions ship inside the page.
+The results reproduce the well-known features of real atoms. Iron's 3d orbital sits inside its 4s, and the 4f orbitals of the lanthanides pull in tight below the 5s and 5p shells. The same potential also gives each atom's lowest allowed excited orbital for the Excite view. Wavelengths computed from these single-electron energies are approximate: hydrogen is exact and lithium is within about 2%, but heavier atoms drift, so the page shows the measured wavelength alongside. The resulting wavefunctions ship inside the page.
 
 The calculation is non-relativistic, so values for the heaviest elements (roughly gold and beyond) are approximate.
 

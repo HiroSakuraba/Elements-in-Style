@@ -89,7 +89,7 @@ function atom(Z, occ) {
     for (let i = 0; i < N; i++) V[i] = (1 - mix) * V[i] + mix * Vn[i];
     if (dV < 2e-6) break;
   }
-  return { orbs, it, dV, g };
+  return { orbs, it, dV, g, V };
 }
 
 const EL = JSON.parse(fs.readFileSync('elements.json', 'utf8'));
@@ -101,9 +101,24 @@ for (const e of EL) {
   if (only && !only.includes(e.Z)) continue;
   const occ = e.order.map(s => { const m = s.match(/(\d)([spdf])(\d+)/); return { n: +m[1], l: LN[m[2]], c: +m[3], key: m[1] + m[2] }; });
   const t0 = Date.now();
-  const { orbs, it, dV, g } = atom(e.Z, occ);
+  const { orbs, it, dV, g, V } = atom(e.Z, occ);
   const rec = {};
-  for (const o of orbs) {
+  // Excitation for the "Excite" view: the least-bound electron jumps (dipole rule, Δl = ±1)
+  // to the lowest orbital above it, solved in the same self-consistent potential.
+  const a = orbs.reduce((p, q) => (q.E > p.E ? q : p));
+  const cap = l => 2 * (2 * l + 1), filled = (n, l) => { const o = occ.find(q => q.n === n && q.l === l); return o ? o.c : 0; };
+  let best = null;
+  for (const lb of [a.l + 1, a.l - 1]) {
+    if (lb < 0 || lb > 3) continue;
+    for (let n = lb + 1, tries = 0; n <= 9 && tries < 4; n++) {
+      if (filled(n, lb) >= cap(lb)) continue;
+      tries++;
+      const s = solve(g, V, n, lb);
+      if (s.E > a.E + 1e-4) { if (!best || s.E < best.E) best = { n, l: lb, ...s }; break; }
+    }
+  }
+  const excited = best ? [{ ...best, key: 'x', c: 0 }] : [];
+  for (const o of [...orbs, ...excited]) {
     // resample u(r) on a shared log grid
     const vals = new Array(NG);
     let rbar = 0, norm = 0;
@@ -114,9 +129,10 @@ for (const e of EL) {
     }
     const mx = Math.max(...vals.map(Math.abs)) || 1;
     rec[o.key] = { E: +(o.E * 27.211386).toFixed(3), rbar: +(rbar / norm).toFixed(4), s: mx, q: vals.map(v => Math.round(v / mx * 32767)) };
+    if (o.key === 'x') { rec.x.from = a.n + 'spdf'[a.l]; rec.x.to = o.n + 'spdf'[o.l]; }
   }
   out[e.Z] = rec;
-  if (only) console.log(e.sym, 'iters', it, 'dV', dV.toExponential(1), Date.now() - t0 + 'ms', Object.entries(rec).map(([k, v]) => `${k} ${(v.E / 27.211386).toFixed(3)}Ha <r>${v.rbar}`).join(' | '));
+  if (only) { const x = rec.x; console.log(e.sym, x ? `${x.from} -> ${x.to}  dE ${(x.E - rec[x.from].E).toFixed(3)} eV  lambda ${(1239.84 / (x.E - rec[x.from].E)).toFixed(0)} nm  <r>b ${x.rbar}` : 'no excitation'); }
   else process.stderr.write(`${e.sym}(${it}) `);
 }
 if (!only) fs.writeFileSync('radial.json', JSON.stringify({ XA, DX, NG, atoms: out }));

@@ -89,6 +89,9 @@ aside.panel { min-width: 0; position: sticky; top: calc(env(safe-area-inset-top,
 .well .ov.b { bottom: 10px; }
 .well .ov > * { pointer-events: auto; }
 .well .tag { font: 11px var(--f-data); color: #9fb0c2; letter-spacing: .06em; }
+.xinfo { position: absolute; left: 12px; right: 12px; top: 64px; font: 11.5px/1.5 var(--f-data); color: #cfd8e3; pointer-events: none; text-shadow: 0 1px 2px #000; display: grid; gap: 2px; }
+.xinfo b { color: #fcffa4; font-weight: 500; }
+.xinfo .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px 0 6px; vertical-align: -1px; box-shadow: 0 0 8px currentColor; border: 0; }
 .well button { background: rgba(20,26,34,.72); color: #dbe4ee; border-color: #2a3542; font: 12px var(--f-data); padding: 4px 8px; }
 .well button[aria-pressed="true"] { color: #fff; border-color: #7fd6ff; }
 .chip { display: inline-flex; gap: 5px; align-items: center; }
@@ -204,6 +207,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
         <div class="ov b" id="orbChips" hidden></div>
         <div class="ov b" id="elekChips" hidden></div>
         <div class="ov b" id="shellChips" hidden></div>
+        <div class="xinfo" id="xInfo" hidden></div>
       </div>
       <p class="wellnote" id="wellNote"></p>
       <details class="hist" id="hist" open><summary>History<span class="when" id="histWhen"></span></summary><div class="hbody" id="histBody"></div></details>
@@ -659,7 +663,7 @@ const physDir = (X, Y, Zt) => [X, -Zt, Y];
 
 /* ---------- WebGL scene ---------- */
 let galleryGroup = null, renderer, scene, camera, root, orbGroup = null, wholeGroup = null, elekMesh = null, lutTex = null, axesGroup = null;
-let orbState = { whole: false, key: null, orb: -1 }, elekState = { cut: true, layers: false };
+let orbState = { whole: false, key: null, orb: -1 }, elekState = { cut: true, layers: false, excite: false };
 const dirty = { orb: true, whole: true, elek: true, shells: true };
 let autoSpin = !reduce;
 
@@ -881,16 +885,20 @@ uniform sampler2D uTex; uniform sampler2D uLut;
 uniform vec3 uCam; uniform float uL0, uL1, uJ0, uJ1, uLo, uHi, uMode, uCut, uTime, uPulse, uAl1, uAl2, uDens;
 uniform float uO1[7]; uniform float uO2[7];
 float dec(float row, float d) { vec4 t = texture2D(uTex, vec2(clamp(d / 1.1, 0.0, 1.0), (row + 0.5) / 4.0)); return (t.r * 255.0 * 256.0 + t.g * 255.0) / 65535.0; }
-float y2(float l, int i, vec3 u) {
+float yv(float l, int i, vec3 u) {
   float x = u.x, y = u.y, z = u.z, v = 0.0;
-  if (l < 1.5) { v = (i == 0) ? z : ((i == 1) ? x : y); v *= 0.48860251; }
+  if (l < 0.5) { v = 0.28209479; }
+  else if (l < 1.5) { v = (i == 0) ? z : ((i == 1) ? x : y); v *= 0.48860251; }
   else if (l < 2.5) { float c = 0.31539157;
     if (i == 0) v = c * (3.0 * z * z - 1.0); else if (i == 1) v = c * 3.4641016 * x * z; else if (i == 2) v = c * 3.4641016 * y * z; else if (i == 3) v = c * 1.7320508 * (x * x - y * y); else v = c * 3.4641016 * x * y; }
   else { float c = 0.37317633;
     if (i == 0) v = c * z * (5.0 * z * z - 3.0); else if (i == 1) v = c * 1.2247449 * x * (5.0 * z * z - 1.0); else if (i == 2) v = c * 1.2247449 * y * (5.0 * z * z - 1.0);
     else if (i == 3) v = c * 3.8729833 * z * (x * x - y * y); else if (i == 4) v = c * 7.7459667 * x * y * z; else if (i == 5) v = c * 1.5811388 * x * (x * x - 3.0 * y * y); else v = c * 1.5811388 * y * (3.0 * x * x - y * y); }
-  return v * v;
+  return v;
 }
+float y2(float l, int i, vec3 u) { float v = yv(l, i, u); return v * v; }
+uniform sampler2D uTexX; uniform float uX, uXla, uXlb, uCa, uCb, uPhase, uSa, uSb, uXmaxA, uXmaxB;
+float decX(float row, float d) { vec4 t = texture2D(uTexX, vec2(clamp(d, 0.0, 1.0), (row + 0.5) / 2.0)); return 2.0 * (t.r * 255.0 * 256.0 + t.g * 255.0) / 65535.0 - 1.0; }
 float aniso(float l, float o[7], vec3 u) { float s = 0.0; for (int i = 0; i < 7; i++) { if (float(i) > 2.0 * l) break; s += o[i] * y2(l, i, u); } return s; }
 void main() {
   vec3 ro = uCam, rd = normalize(vPos - uCam);
@@ -903,15 +911,23 @@ void main() {
     vec3 p = ro + rd * (t0 + (float(s) + 0.5) * dt); float d = length(p);
     if (uCut > 0.5 && p.x < 0.0 && p.z < 0.0) { if (d < 1.0) wasCut = true; continue; }
     vec3 u = d > 1e-5 ? p / d : vec3(0.0, 1.0, 0.0); vec3 ph = vec3(u.x, -u.z, u.y);
+    float v;
+    if (uX > 0.5) { // one electron in a superposition of two states: its density sloshes at the transition frequency
+      if (d > 1.0) continue;
+      float pa = decX(0.0, d) * uSa * yv(uXla, 0, ph), pb = decX(1.0, d) * uSb * yv(uXlb, 0, ph);
+      float qx = uCa * uCa * pa * pa + uCb * uCb * pb * pb + 2.0 * uCa * uCb * pa * pb * cos(uPhase);
+      v = sqrt(clamp(qx / (uCa * uCa * uXmaxA + uCb * uCb * uXmaxB), 0.0, 1.0));
+    } else {
     float q = exp(uL0 + dec(0.0, d) * (uL1 - uL0));
     if (uAl1 > 0.5) q += exp(uL0 + dec(1.0, d) * (uL1 - uL0)) * aniso(uAl1, uO1, ph);
     if (uAl2 > 0.5) q += exp(uL0 + dec(2.0, d) * (uL1 - uL0)) * aniso(uAl2, uO2, ph);
     if (uMode > 0.5) q *= exp(uJ0 + dec(3.0, d) * (uJ1 - uJ0));
-    float v = uMode > 0.5 ? pow(clamp(q / exp(uHi), 0.0, 1.0), 0.75) : clamp((log(max(q, 1e-30)) - uLo) / (uHi - uLo), 0.0, 1.0);
+    v = uMode > 0.5 ? pow(clamp(q / exp(uHi), 0.0, 1.0), 0.75) : clamp((log(max(q, 1e-30)) - uLo) / (uHi - uLo), 0.0, 1.0);
     v *= 1.0 - uPulse * 0.14 * (0.5 + 0.5 * sin(uTime * 2.2 - d * 9.0));
+    }
     vec3 cc = texture2D(uLut, vec2(v, 0.5)).rgb;
     if (wasCut) { col += T * 0.94 * cc; T *= 0.06; wasCut = false; if (T < 0.015) break; continue; }
-    float a = 1.0 - exp(-dt * uDens * (uMode > 0.5 ? pow(v, 3.0) : pow(v, 2.0)));
+    float a = 1.0 - exp(-dt * uDens * (uMode > 0.5 && uX < 0.5 ? pow(v, 3.0) : pow(v, 2.0)));
     col += T * a * cc * 1.2; T *= 1.0 - a;
     if (T < 0.015) break;
   }
@@ -953,8 +969,27 @@ function buildElek(e) {
       uO1: { value: occArr(opens[0]) }, uO2: { value: occArr(opens[1]) }
     }
   });
+  // transition data: ground valence orbital a and excited orbital b on a linear radius grid
+  const xr = RAD.atoms[e.Z].x, ra = radFor(e.Z, xr.from), rb = radFor(e.Z, 'x');
+  const Rext = Math.max(ra.half, rb.half), XW = 512, xd = new Uint8Array(XW * 2 * 4);
+  let sa = 0, sb = 0; const Ra = new Float64Array(XW), Rb = new Float64Array(XW);
+  for (let k = 0; k < XW; k++) { const r = (k + 0.5) / XW * Rext; Ra[k] = ra.R(r); Rb[k] = rb.R(r); sa = Math.max(sa, Math.abs(Ra[k])); sb = Math.max(sb, Math.abs(Rb[k])); }
+  const putX = (row, k, v) => { const u = Math.round((0.5 + 0.5 * v) * 65535), p = (row * XW + k) * 4; xd[p] = u >> 8; xd[p + 1] = u & 255; xd[p + 3] = 255; };
+  let xmaxA = 0, xmaxB = 0;
+  for (let k = 0; k < XW; k++) {
+    putX(0, k, Ra[k] / sa); putX(1, k, Rb[k] / sb);
+    const r = (k + 0.5) / XW * Rext;
+    if (r > 0.3 * ra.rbar) xmaxA = Math.max(xmaxA, Ra[k] * Ra[k] * (2 * ra.l + 1) / (4 * Math.PI));
+    if (r > 0.3 * rb.rbar) xmaxB = Math.max(xmaxB, Rb[k] * Rb[k] * (2 * rb.l + 1) / (4 * Math.PI));
+  }
+  const texX = new THREE.DataTexture(xd, XW, 2, THREE.RGBAFormat); texX.magFilter = texX.minFilter = THREE.LinearFilter; texX.needsUpdate = true;
+  Object.assign(mat.uniforms, {
+    uTexX: { value: texX }, uX: { value: 0 }, uXla: { value: ra.l }, uXlb: { value: rb.l }, uCa: { value: 1 }, uCb: { value: 0 }, uPhase: { value: 0 },
+    uSa: { value: sa }, uSb: { value: sb }, uXmaxA: { value: xmaxA * 0.6 }, uXmaxB: { value: xmaxB * 0.6 }
+  });
+  mat.userData.x = { from: xr.from, to: xr.to, dE: rb.E - ra.E, Rext };
   mat.blending = THREE.CustomBlending; mat.blendSrc = THREE.OneFactor; mat.blendDst = THREE.OneMinusSrcAlphaFactor;
-  mat.userData = { dens: [dLo, dHi], layers: [lHi - 4.2, lHi] };
+  Object.assign(mat.userData, { dens: [dLo, dHi], layers: [lHi - 4.2, lHi] });
   elekMesh = new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.3, 2.3), mat);
   root.add(elekMesh);
   applyElekState();
@@ -963,7 +998,9 @@ function applyElekState() {
   if (!elekMesh) return;
   const u = elekMesh.material.uniforms, r = elekState.layers ? elekMesh.material.userData.layers : elekMesh.material.userData.dens;
   u.uCut.value = elekState.cut ? 1 : 0; u.uMode.value = elekState.layers ? 1 : 0; u.uLo.value = r[0]; u.uHi.value = r[1];
-  u.uDens.value = elekState.layers ? 3.2 : 4.0;
+  u.uDens.value = elekState.excite ? 5.5 : elekState.layers ? 3.2 : 4.0;
+  u.uX.value = elekState.excite ? 1 : 0;
+  renderXInfo();
 }
 
 /* ---------- Shells: Elektronium layers + radial density, poured in filling order ---------- */
@@ -1074,6 +1111,45 @@ function kickShells(pour) {
   shellRAF = requestAnimationFrame(shellLoop);
 }
 
+/* ---------- Excite: a real transition, slowed down ---------- */
+// Measured wavelength (nm) of the same transition, where it is a well-known line.
+const MEASURED = { 1: [121.6, 'Lyman-α'], 2: [58.4, ''], 3: [670.8, ''], 6: [165.7, ''], 7: [120.0, ''], 8: [130.2, ''], 10: [73.6, ''], 11: [589.0, 'sodium D line'],
+  12: [285.2, ''], 13: [396.2, ''], 18: [104.8, ''], 19: [766.5, ''], 20: [422.7, ''], 26: [372.0, ''], 29: [324.8, ''], 30: [213.9, ''], 36: [123.6, ''],
+  37: [780.0, ''], 38: [460.7, ''], 47: [328.1, ''], 48: [228.8, ''], 54: [147.0, ''], 55: [852.1, ''], 56: [553.5, ''], 79: [242.8, ''] };
+const X_NOTE = 'Excite follows the outermost electron as it absorbs light, jumps to a higher orbital, and falls back, emitting light. While it is between the two states, its Elektronium sloshes back and forth at the frequency of the light (here slowed down about a thousand trillion times); once it settles in either state, it holds still. The two states come from the same self-consistent atom calculation, and the model’s wavelength is shown next to the measured one where that line is well known. Distances here are to true scale.';
+let xStart = 0, xPhaseName = '';
+function nmToRGB(nm) {
+  if (nm < 380) return 'rgb(150,120,255)'; if (nm > 750) return 'rgb(150,20,10)';
+  let r = 0, g = 0, b = 0;
+  if (nm < 440) { r = -(nm - 440) / 60; b = 1; } else if (nm < 490) { g = (nm - 440) / 50; b = 1; } else if (nm < 510) { g = 1; b = -(nm - 510) / 20; }
+  else if (nm < 580) { r = (nm - 510) / 70; g = 1; } else if (nm < 645) { r = 1; g = -(nm - 645) / 65; } else r = 1;
+  return `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`;
+}
+const bandOf = nm => nm < 380 ? 'ultraviolet' : nm > 750 ? 'infrared' : 'visible';
+function renderXInfo() {
+  const box = document.getElementById('xInfo');
+  if (!elekState.excite || !elekMesh || mode !== 'elek') { box.hidden = true; return; }
+  const x = elekMesh.material.userData.x, e = byZ(current), model = 1239.84 / x.dE, meas = MEASURED[e.Z];
+  const nm = meas ? meas[0] : model, nu = 299792458 / (nm * 1e-9), slow = nu / 1.3;
+  box.hidden = false; const ot = document.getElementById('ovTop'); box.style.top = (ot.offsetTop + ot.offsetHeight + 10) + 'px';
+  const ex = Math.floor(Math.log10(slow)), slowTxt = `${Math.round(slow / Math.pow(10, ex))} × 10${sup(ex)}`;
+  box.innerHTML = `<div><b>${x.from} → ${x.to}</b> <span class="sw" style="background:${nmToRGB(nm)}"></span>${meas ? `measured ${meas[0]} nm${meas[1] ? ` (${meas[1]})` : ''} · model ≈ ${Math.round(model)} nm` : `model ≈ ${Math.round(model)} nm`} · ${bandOf(nm)}</div>
+    <div>light at ${(nu / 1e15).toFixed(2)} PHz, shown about ${slowTxt} times slower · <span id="xPhase">${xPhaseName}</span></div>`;
+}
+const X_CYCLE = [[1.4, 'resting in the ground state'], [4.2, 'absorbing light — sloshing'], [1.6, 'excited, holding still'], [4.2, 'emitting light — sloshing'], [0.6, 'back in the ground state']];
+function xUpdate(now) {
+  const total = X_CYCLE.reduce((s, c) => s + c[0], 0), tt = ((now - xStart) / 1000) % total, u = elekMesh.material.uniforms;
+  let acc = 0, th = 0, name = '';
+  for (let i = 0; i < X_CYCLE.length; i++) {
+    const [dur, nm] = X_CYCLE[i];
+    if (tt < acc + dur) { const f = (tt - acc) / dur, ease = 0.5 - 0.5 * Math.cos(Math.PI * f); th = i === 0 || i === 4 ? 0 : i === 1 ? ease * Math.PI : i === 2 ? Math.PI : (1 - ease) * Math.PI; name = nm; break; }
+    acc += dur;
+  }
+  const xb = document.getElementById('xInfo'), ot = document.getElementById('ovTop'); xb.style.top = (ot.offsetTop + ot.offsetHeight + 10) + 'px';
+  u.uCa.value = Math.cos(th / 2); u.uCb.value = Math.sin(th / 2); u.uPhase.value = (now - xStart) / 1000 * 2 * Math.PI * 1.3;
+  if (name !== xPhaseName) { xPhaseName = name; const el = document.getElementById('xPhase'); if (el) el.textContent = name; }
+}
+
 /* ---------- modes, chips, render loop ---------- */
 const NOTES = {
   slice: 'Each square is a cut through the nucleus in the xz-plane, colored by how likely the electron is to be found there (black never, white most likely). The angular shape of a p, d or f orbital is the same in every atom; what the element changes is the radial part — how big the orbital is, where its dark nodal rings fall, and how deep it dips toward the nucleus. Radial functions come from a self-consistent density-functional calculation of each atom, so True size shows real proportions: inner shells shrink to specks as the nuclear charge grows. m and −m look the same, so only m ≥ 0 is shown. Tap a square to enlarge it.',
@@ -1106,7 +1182,14 @@ function renderOrbChips() {
 function renderElekChips() {
   const box = document.getElementById('elekChips'); box.innerHTML = '';
   chipBtn(box, 'Cutaway', elekState.cut, () => { elekState.cut = !elekState.cut; applyElekState(); renderElekChips(); }, 'Cut a wedge out to see inside');
-  chipBtn(box, 'Layers', elekState.layers, () => { elekState.layers = !elekState.layers; applyElekState(); renderElekChips(); }, 'Show how much Elektronium sits at each distance');
+  if (!elekState.excite) chipBtn(box, 'Layers', elekState.layers, () => { elekState.layers = !elekState.layers; applyElekState(); renderElekChips(); }, 'Show how much Elektronium sits at each distance');
+  chipBtn(box, 'Excite', elekState.excite, () => {
+    elekState.excite = !elekState.excite; xStart = performance.now();
+    if (elekState.excite) { elekState.cut = false; if (root) root.rotation.set(0.22, 0.5, 0); }
+    applyElekState(); renderElekChips();
+    document.getElementById('wellNote').textContent = elekState.excite ? X_NOTE : NOTES.elek;
+    document.getElementById('wellTag').textContent = elekState.excite ? 'ELEKTRONIUM · ONE ELECTRON, EXCITED' : TAGS.elek;
+  }, 'Watch the outermost electron jump to a higher state and fall back, emitting light');
 }
 function renderShellChips() {
   const box = document.getElementById('shellChips'); box.innerHTML = '';
@@ -1133,7 +1216,8 @@ function applyMode() {
     if (!orbState.whole && dirty.orb) { buildOrb(e); dirty.orb = false; }
     renderOrbChips();
   }
-  if (mode === 'elek' && haveGL) { if (dirty.elek) { buildElek(e); dirty.elek = false; } renderElekChips(); }
+  if (mode === 'elek' && haveGL) { if (dirty.elek) { buildElek(e); dirty.elek = false; } renderElekChips(); if (elekState.excite) { document.getElementById('wellNote').textContent = X_NOTE; document.getElementById('wellTag').textContent = 'ELEKTRONIUM · ONE ELECTRON, EXCITED'; } }
+  renderXInfo();
   if (orbGroup) orbGroup.visible = mode === 'orb' && !orbState.whole;
   if (galleryGroup) galleryGroup.visible = mode === 'orb' && !orbState.whole;
   if (wholeGroup) wholeGroup.visible = mode === 'orb' && orbState.whole;
@@ -1153,6 +1237,7 @@ function loop(now) {
     if (mode === 'elek' && elekMesh) {
       const u = elekMesh.material.uniforms; u.uTime.value = time; u.uPulse.value = pz;
       root.updateMatrixWorld(); u.uCam.value.copy(elekMesh.worldToLocal(camera.position.clone()));
+      if (elekState.excite) xUpdate(now);
     }
     renderer.render(scene, camera);
   }
@@ -1174,7 +1259,7 @@ function radFor(Z, key) {
   const rec = RAD.atoms[Z][key], NG = RAD.NG, XA = RAD.XA, DX = RAD.DX;
   const bin = atob(rec.b), u = new Float32Array(NG);
   for (let k = 0; k < NG; k++) { let v = bin.charCodeAt(2 * k) | (bin.charCodeAt(2 * k + 1) << 8); if (v > 32767) v -= 65536; u[k] = v / 32767 * rec.s; }
-  const l = LNUM[key[key.length - 1]], r0 = Math.exp(XA);
+  const l = key === 'x' ? LNUM[rec.to[rec.to.length - 1]] : LNUM[key[key.length - 1]], r0 = Math.exp(XA);
   const cdf = new Float32Array(NG); let acc = 0;
   for (let k = 0; k < NG; k++) { acc += u[k] * u[k] * Math.exp(XA + k * DX) * DX; cdf[k] = acc; }
   const rq = q => { for (let k = 0; k < NG; k++) if (cdf[k] >= q * acc) return Math.exp(XA + k * DX); return Math.exp(XA + (NG - 1) * DX); };
@@ -1186,7 +1271,7 @@ function radFor(Z, key) {
   const rmax = rq(0.9995), Nt = 700, tr = [], tR = [], tc = []; let a = 0;
   for (let i = 0; i <= Nt; i++) { const ri = rmax * i / Nt, Rv = R(ri); tr.push(ri); tR.push(Rv); if (i) a += ri * ri * Rv * Rv; tc.push(a); }
   for (let i = 0; i <= Nt; i++) tc[i] /= a;
-  return radCache[id] = { R, l, E: rec.E, rbar: rec.rbar, half: rq(0.995) * 1.02, tab: { r: tr, R: tR, cdf: tc, rmax } };
+  return radCache[id] = { R, l, E: rec.E, rbar: rec.rbar, half: rq(0.995) * 1.02, tab: { r: tr, R: tR, cdf: tc, rmax }, from: rec.from, to: rec.to };
 }
 const hydrogenR = (n, l) => r => { const rho = 2 * r / n; return Math.pow(rho, l) * Math.exp(-rho / 2) * laguerre(n - l - 1, 2 * l + 1, rho); };
 
