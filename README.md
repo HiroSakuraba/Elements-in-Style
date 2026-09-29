@@ -17,7 +17,8 @@ An interactive periodic table laid out as a spiral, with a pulsing electron-orbi
   - Physical and thermal: melting and boiling point, density, heat capacity, conductivity, crystal structure.
   - Atomic: radii, electronegativity, electron affinity, oxidation states, and a chart of successive ionization energies.
   - Magnetism: unpaired electrons, ground-state term, spin-only and free-atom magnetic moments, bulk magnetic order, nuclear moments.
-  - Isotopes: every known isotope with abundance, half-life, spin, magnetic moment and decay modes.
+  - Isotopes: every known isotope with abundance, half-life, spin, magnetic moment, decay modes and quark counts.
+  - Quarks and nucleons: up, down and total quark counts for any isotope you pick, and the share of the atom's mass that comes from the quarks' own rest mass (about 1%).
   - Electron configuration, with orbital box diagrams and per-subshell orbital energies and radii.
 
 

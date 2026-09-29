@@ -21,6 +21,8 @@
   --tile-l: 30%;
   --tile-ink: #eef2f6;
   --well: #05070a;
+  --q-up: #d8457a;
+  --q-down: #2f86c9;
   --f-display: "Questrial", "Century Gothic", "Avenir Next", "Helvetica Neue", sans-serif;
   --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -29,12 +31,12 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #4c5663; --ink-3: #8a929c; --rule: #d3d7d0;
-    --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; color-scheme: light;
+    --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; --q-up: #c2305f; --q-down: #1f6fae; color-scheme: light;
   }
 }
 :root[data-theme="light"] {
   --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #4c5663; --ink-3: #8a929c; --rule: #d3d7d0;
-  --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; color-scheme: light;
+  --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; --q-up: #c2305f; --q-down: #1f6fae; color-scheme: light;
 }
 * { box-sizing: border-box; }
 html, body { background: var(--bg); color: var(--ink); }
@@ -140,6 +142,11 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 .hist .fact b { color: var(--accent); }
 .hist .fact span { font: 400 16px/1.45 var(--f-display); letter-spacing: .01em; }
 .tl { width: 100%; height: auto; display: block; }
+.qbar { display: flex; height: 12px; border-radius: 3px; overflow: hidden; margin: 12px 0 4px; }
+.qbar .u { background: var(--q-up); } .qbar .d { background: var(--q-down); }
+.qkey { display: flex; justify-content: space-between; font: 12px var(--f-data); color: var(--ink-2); }
+.qkey i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+#quarkIso { padding: 3px 6px; font: 13px var(--f-data); }
 .tl .ax { stroke: var(--ink-3); stroke-width: 1; }
 .tl .tk { fill: var(--ink-3); opacity: .45; }
 .tl .me { fill: var(--accent); }
@@ -410,7 +417,7 @@ document.addEventListener('keydown', ev => {
 
 /* ---------- stats panel ---------- */
 const idcard = document.getElementById('idcard'), stats = document.getElementById('stats');
-const openState = { overview: true, thermal: true, atomic: false, magnetic: true, isotopes: true, config: false };
+const openState = { overview: true, thermal: true, atomic: false, magnetic: true, isotopes: true, quarks: true, config: false };
 let showAllIso = false;
 const val = (v, unit = '', d) => v == null || v === '' ? '<span class="na">—</span>' : `${typeof v === 'number' ? fmt(v, d) : esc(v)}${unit ? ' ' + unit : ''}`;
 const temp = K => K == null ? '<span class="na">—</span>' : `${fmt(K, 5)} K <span class="na">(${(K - 273.15).toFixed(1)} °C)</span>`;
@@ -482,8 +489,8 @@ function renderStats(e) {
     <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <span class="hint">${showAllIso ? 'All isotopes' : 'Stable, natural, and half-life ≥ 1 s'} · ${shown.length} shown</span>
       <button id="isoToggle">${showAllIso ? 'Show notable only' : `Show all ${known}`}</button></div>
-    <div class="tablewrap"><table><thead><tr><th>Isotope</th><th>Mass (u)</th><th>Abund. %</th><th>Half-life</th><th>Spin</th><th>μ (μ<sub>N</sub>)</th><th>Decay</th></tr></thead><tbody>
-    ${shown.map(i => `<tr class="${i[3] === 'stable' ? 'stable' : ''}"><td><sup>${i[0]}</sup>${e.sym}</td><td>${i[1] ?? '—'}</td><td>${i[2] ?? '—'}</td><td>${esc(i[3] ?? 'unknown')}</td><td>${esc(i[5] || '—')}</td><td>${i[6] ?? '—'}</td><td>${esc(i[7] || (i[3] === 'stable' ? '' : '—'))}</td></tr>`).join('')}
+    <div class="tablewrap"><table><thead><tr><th>Isotope</th><th>Mass (u)</th><th>Abund. %</th><th>Half-life</th><th>Spin</th><th>μ (μ<sub>N</sub>)</th><th>Decay</th><th>u / d quarks</th></tr></thead><tbody>
+    ${shown.map(i => `<tr class="${i[3] === 'stable' ? 'stable' : ''}"><td><sup>${i[0]}</sup>${e.sym}</td><td>${i[1] ?? '—'}</td><td>${i[2] ?? '—'}</td><td>${esc(i[3] ?? 'unknown')}</td><td>${esc(i[5] || '—')}</td><td>${i[6] ?? '—'}</td><td>${esc(i[7] || (i[3] === 'stable' ? '' : '—'))}</td><td>${2 * e.Z + (i[0] - e.Z)} / ${e.Z + 2 * (i[0] - e.Z)}</td></tr>`).join('')}
     </tbody></table></div>`;
 
   // orbital box diagram for outer subshells
@@ -503,17 +510,49 @@ function renderStats(e) {
   ]) + boxes + `<div class="tablewrap" style="max-height:260px"><table><thead><tr><th>Subshell</th><th>e⁻</th><th>Energy (eV)</th><th>⟨r⟩ (pm)</th></tr></thead><tbody>${e.order.map(s => { const m = s.match(/(\d)([spdf])(\d+)/), rd = radFor(e.Z, m[1] + m[2]); return `<tr><td>${m[1]}${m[2]}</td><td>${m[3]}</td><td>${fmt(rd.E, 4)}</td><td>${fmt(rd.rbar * 52.918, 3)}</td></tr>`; }).join('')}</tbody></table></div><p class="note">Orbital energies and mean radii from a self-consistent local-density calculation of the free atom (non-relativistic, so the heaviest elements are approximate).</p>` + `<p class="note">Boxes show the outer subshells filled by Hund’s rule — each orbital takes one electron before any pairs up. Unpaired arrows are what give the atom its magnetic moment.</p>`;
 
 
+  const qk = quarkSection(e);
   stats.innerHTML =
     section('overview', 'Overview', '', overview) +
     section('thermal', 'Physical &amp; thermal', e.mp ? `mp ${fmt(e.mp, 4)} K` : '', thermal) +
     section('atomic', 'Atomic properties', e.en ? `χ ${e.en}` : '', atomic) +
     section('magnetic', 'Magnetism', `${m.muS} μB`, magnetic) +
     section('isotopes', 'Isotopes &amp; half-life', `${known} known`, iso) +
+    section('quarks', 'Quarks &amp; nucleons', qk.badge, qk.html) +
     section('config', 'Electron configuration', `${m.unpaired} unpaired`, config);
   renderHistory(e);
   stats.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => { openState[d.dataset.k] = d.open; }));
+  const qs = document.getElementById('quarkIso');
+  if (qs) qs.onchange = () => { quarkPick[e.Z] = +qs.value; renderStats(e); document.getElementById('quarkIso')?.focus(); };
   const it = document.getElementById('isoToggle');
   if (it) it.onclick = () => { showAllIso = !showAllIso; renderStats(e); };
+}
+
+/* ---------- quark counts ---------- */
+const M_UP = 2.16, M_DOWN = 4.70, MEV_PER_U = 931.494; // PDG current-quark masses (MeV)
+const quarkPick = {};
+function refIsotope(e) {
+  const st = e.isotopes.filter(i => i[3] === 'stable' && i[2] != null);
+  if (st.length) return st.reduce((a, b) => (b[2] > a[2] ? b : a))[0];
+  if (e.longest) return e.longest[0];
+  const hl = e.isotopes.filter(i => i[4] != null);
+  if (hl.length) return hl.reduce((a, b) => (b[4] > a[4] ? b : a))[0];
+  return Math.round(e.mass);
+}
+function quarkSection(e) {
+  const A = quarkPick[e.Z] ?? refIsotope(e), Z = e.Z, N = A - Z;
+  const up = 2 * Z + N, dn = Z + 2 * N, iso = e.isotopes.find(i => i[0] === A);
+  const massU = (iso && iso[1]) || A, restMeV = up * M_UP + dn * M_DOWN, share = restMeV / (massU * MEV_PER_U) * 100;
+  const opts = e.isotopes.map(i => `<option value="${i[0]}" ${i[0] === A ? 'selected' : ''}>${e.sym}-${i[0]}${i[3] === 'stable' ? ' (stable)' : ''}</option>`).join('');
+  const html = kv([
+    ['Isotope', `<select id="quarkIso" aria-label="Isotope for quark count">${opts}</select>`],
+    ['Protons (uud)', Z], ['Neutrons (udd)', N],
+    ['Up quarks', up.toLocaleString('en-US')], ['Down quarks', dn.toLocaleString('en-US')],
+    ['Total quarks', (3 * A).toLocaleString('en-US')], ['Electrons', Z],
+    ['Quark rest mass', `${fmt(restMeV, 4)} MeV · ${share.toFixed(2)}% of the atom’s mass`]
+  ]) + `<div class="qbar" role="img" aria-label="${up} up and ${dn} down quarks"><span class="u" style="flex:${up}"></span><span class="d" style="flex:${dn}"></span></div>
+    <div class="qkey"><span><i style="background:var(--q-up)"></i>up ${(up / (3 * A) * 100).toFixed(1)}%</span><span><i style="background:var(--q-down)"></i>down ${(dn / (3 * A) * 100).toFixed(1)}%</span></div>
+    <p class="note">Every proton is two up quarks and one down; every neutron is one up and two down. These are the valence quarks, the ones that give a particle its identity. Each proton and neutron also holds a constantly churning sea of gluons and short-lived quark–antiquark pairs, which has no fixed count. The quarks’ own rest masses (up ≈ ${M_UP} MeV, down ≈ ${M_DOWN} MeV, Particle Data Group) add up to only about 1% of the atom’s mass. Nearly all the rest is the energy of the strong force holding them together.</p>`;
+  return { html, badge: `${(3 * A).toLocaleString('en-US')} quarks` };
 }
 
 /* ---------- history panel ---------- */
