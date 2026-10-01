@@ -199,6 +199,18 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 .nucinfo .ln { font: 13px/1.5 var(--f-body); color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .nucinfo .ln b { color: var(--ink); font-weight: 500; }
 .nucinfo .pn { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+.sampler { border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; background: var(--bg-2); }
+.sampler canvas { width: 100%; height: 170px; display: block; }
+.sampler .row2 { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; }
+.chainbox { border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; background: var(--bg-2); }
+.chainseq { display: flex; flex-wrap: wrap; gap: 4px 2px; align-items: center; font: 13px var(--f-data); }
+.chainseq .nd { padding: 2px 6px; border-radius: 6px; border: 1px solid var(--rule); background: var(--bg); }
+.chainseq .nd.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.chainseq .nd.done { opacity: .6; }
+.chainseq .ar { color: var(--ink-3); font-size: 11px; padding: 0 2px; }
+.chainpath { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: .9; pointer-events: none; }
+.chaindot { fill: var(--accent); pointer-events: none; }
+.chainnum { fill: var(--bg); font: 600 11px var(--f-data); pointer-events: none; }
 .decaybtns { display: flex; flex-wrap: wrap; gap: 6px; }
 .decaybtns button { font-size: 12.5px; padding: 5px 10px; }
 .decaybtns button span { color: var(--ink-3); font-size: 11.5px; }
@@ -482,6 +494,7 @@ function applyMorph(k) {
     nt.setAttribute('x', L[6]); nt.setAttribute('y', L[7]); nt.setAttribute('font-size', L[8].toFixed(1)); nt.setAttribute('opacity', L[9].toFixed(2));
   });
   spiralDeco.forEach(n => n.setAttribute('opacity', (1 - k).toFixed(2)));
+  try { if (chain.steps) drawChainPath(); } catch (_) { /* chain state not created yet during first layout */ }
   tableDeco.setAttribute('opacity', k.toFixed(2));
 }
 applyMorph(0);
@@ -1797,7 +1810,7 @@ function startDecay(e, A, md) {
 }
 function prepStep() {
   const D = decay, st = D.plan.steps[D.si], ud = nucGroup.userData, items = ud.items, d = D.d;
-  st.t0 = performance.now(); st.dur = STEP_DUR[st.k] * 1000 * nucState.slow; D.labels = []; D.photons = [];
+  st.t0 = performance.now(); st.dur = STEP_DUR[st.k] * 1000 * nucState.slow * (chain.running && nucState.slow === 1 ? 0.6 : 1); D.labels = []; D.photons = [];
   if (st.k === 'cl') {
     const ps = pickSurface(items, it => it.proton, d, st.zc), ns = pickSurface(items, it => !it.proton, d, st.nc), group = [...ps, ...ns];
     const ctr = group.reduce((s, it) => s.add(it.pos), new THREE.Vector3()).multiplyScalar(1 / group.length);
@@ -1879,7 +1892,7 @@ function decayTick(now) {
     if (st.lep) { [st.lep, st.nu].forEach(P => { P.m.visible = false; P.trail.visible = false; }); st.it.scale = 1; }
     if (st.skip && st.it === undefined && (st.k === 'bm' || st.k === 'bp' || st.k === 'ec')) {}
     D.si++;
-    if (D.si >= D.plan.steps.length) { D.done = true; D.labels = []; D.photons = []; autoSpin = !reduce; renderNucInfo(D.e); }
+    if (D.si >= D.plan.steps.length) { D.done = true; D.labels = []; D.photons = []; autoSpin = !reduce; renderNucInfo(D.e); chainAfterDecay(); }
     else prepStep();
   }
 }
@@ -1909,6 +1922,127 @@ function drawDecayOverlay() {
     say(ph.label, cx + ux * rr + (ux < 0 ? -10 : 10) * dpr, cy + uy * rr - 12 * dpr, ux < 0 ? 'right' : 'left');
   });
 }
+
+/* ---------- half-life sampler: 100 nuclei decaying at random ---------- */
+const sampler = { run: null };
+function startSampler(e, A, iso) {
+  const T = 2.0, lam = Math.LN2 / T, n = 100;
+  sampler.run = { key: `${e.Z}-${A}`, t0: performance.now(), T, times: Array.from({ length: n }, () => -Math.log(1 - Math.random()) / lam), iso, e, A };
+  drawSampler();
+}
+function drawSampler() {
+  const cv = document.getElementById('sampCv'); if (!cv) return;
+  const S = sampler.run, rect = cv.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2), W = Math.round(rect.width * dpr), H = Math.round(rect.height * dpr);
+  if (!W) return; if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const c = cv.getContext('2d'), cs = getComputedStyle(document.documentElement);
+  const ink = cs.getPropertyValue('--ink').trim(), ink3 = cs.getPropertyValue('--ink-3').trim(), acc = cs.getPropertyValue('--accent').trim(), rule = cs.getPropertyValue('--rule').trim();
+  c.clearRect(0, 0, W, H);
+  const tMax = 6 * (S ? S.T : 2), now = S ? Math.min(tMax, (performance.now() - S.t0) / 1000) : 0;
+  const left = S ? S.times.filter(x => x > now).length : 100;
+  // grid of 100 nuclei
+  const g = Math.min(H - 20 * dpr, W * 0.36), cell = g / 10, gx = 0, gy = 6 * dpr;
+  for (let i = 0; i < 100; i++) {
+    const x = gx + (i % 10 + 0.5) * cell, y = gy + (Math.floor(i / 10) + 0.5) * cell, alive = !S || S.times[i] > now;
+    const justNow = S && !alive && now - S.times[i] < 0.25;
+    c.beginPath(); c.arc(x, y, cell * (justNow ? 0.46 : 0.36), 0, Math.PI * 2);
+    c.fillStyle = alive ? acc : ink3; c.globalAlpha = alive ? 1 : 0.35; c.fill(); c.globalAlpha = 1;
+  }
+  c.font = `${11 * dpr}px "IBM Plex Sans", system-ui, sans-serif`; c.fillStyle = ink; c.textAlign = 'left';
+  c.fillText(`${left} of 100 left`, gx, gy + g + 14 * dpr);
+  // curve: this run vs the smooth expectation
+  const px = gx + g + 26 * dpr, pw = W - px - 6 * dpr, py = 8 * dpr, ph = H - 34 * dpr;
+  const X = tt => px + tt / tMax * pw, Y = v => py + ph - v / 100 * ph;
+  c.strokeStyle = rule; c.lineWidth = dpr; c.beginPath(); c.moveTo(px, py); c.lineTo(px, py + ph); c.lineTo(px + pw, py + ph); c.stroke();
+  for (let k = 1; k <= 6; k++) { const xx = X(k * (S ? S.T : 2)); c.strokeStyle = rule; c.setLineDash([2 * dpr, 3 * dpr]); c.beginPath(); c.moveTo(xx, py); c.lineTo(xx, py + ph); c.stroke(); c.setLineDash([]);
+    c.fillStyle = ink3; c.textAlign = 'center'; c.font = `${9.5 * dpr}px "IBM Plex Mono", monospace`; c.fillText(`${k}`, xx, py + ph + 12 * dpr); }
+  c.textAlign = 'left'; c.fillText('half-lives →', px, py + ph + 24 * dpr);
+  c.strokeStyle = ink3; c.lineWidth = 1.5 * dpr; c.setLineDash([5 * dpr, 4 * dpr]); c.beginPath();
+  for (let i = 0; i <= 120; i++) { const tt = tMax * i / 120, v = 100 * Math.pow(2, -tt / (S ? S.T : 2)); i ? c.lineTo(X(tt), Y(v)) : c.moveTo(X(tt), Y(v)); }
+  c.stroke(); c.setLineDash([]);
+  [50, 25, 12.5].forEach(v => { c.fillStyle = ink3; c.textAlign = 'right'; c.fillText(String(v), px - 4 * dpr, Y(v) + 3 * dpr); });
+  if (S) {
+    const ts = S.times.slice().sort((a, b) => a - b); c.strokeStyle = acc; c.lineWidth = 2.2 * dpr; c.beginPath(); c.moveTo(X(0), Y(100));
+    let v = 100; for (const tt of ts) { if (tt > now) break; c.lineTo(X(tt), Y(v)); v--; c.lineTo(X(tt), Y(v)); } c.lineTo(X(now), Y(v)); c.stroke();
+  }
+  c.fillStyle = ink3; c.textAlign = 'right'; c.fillText('dashed: expected · solid: this run', px + pw, py + 10 * dpr);
+  const msg = document.getElementById('sampMsg');
+  if (msg && S) { const hl = Math.floor(now / S.T + 1e-9); msg.textContent = now >= tMax ? `Done. Each nucleus went at a random moment, yet the group halved about every half-life. Run again: the details change, the halving does not.` : `After ${hl} half-li${hl === 1 ? 'fe' : 'ves'}: ${left} left (the average would be ${Math.round(100 * Math.pow(2, -hl))}).`; }
+  if (S && now < tMax) requestAnimationFrame(drawSampler);
+}
+function samplerHTML(e, A, iso) {
+  if (!iso || iso[3] === 'stable' || !iso[4]) return '';
+  return `<div class="sampler"><div class="row2"><b style="font-weight:500">What a half-life means</b><button id="sampGo">${sampler.run && sampler.run.key === `${e.Z}-${A}` ? 'Run again' : 'Watch 100 nuclei'}</button></div>
+    <canvas id="sampCv" aria-label="100 ${esc(e.name)}-${A} nuclei decaying at random, with the count over time"></canvas>
+    <div class="ln" id="sampMsg">Each half-life of ${esc(e.sym)}-${A} (${esc(iso[3])}) is shown as 2 seconds. Nobody can say which nucleus goes next, but half of them go in each half-life.</div></div>`;
+}
+
+/* ---------- decay chains: follow the dominant decay until a stable nucleus ---------- */
+const chain = { steps: null, i: 0, running: false, timer: 0, Qsum: 0 };
+const shareOf = m => { const x = (m.share || '').match(/([\d.]+)\s*%/); return x ? +x[1] : (/trace/.test(m.share || '') ? 0 : 1); };
+function buildChain(Z, A) {
+  const steps = []; let z = Z, a = A;
+  for (let k = 0; k < 25; k++) {
+    const el = byZ(z); if (!el) break;
+    const iso = el.isotopes.find(q => q[0] === a);
+    if (!iso) { steps.push({ Z: z, A: a, end: 'not in the data' }); break; }
+    if (iso[3] === 'stable') { steps.push({ Z: z, A: a, end: 'stable' }); break; }
+    const ms = parseModes(el, a, iso).filter(m => m.code !== 'IT');
+    if (!ms.length) { steps.push({ Z: z, A: a, end: 'no decay data' }); break; }
+    const md = ms.slice().sort((x, y) => shareOf(y) - shareOf(x))[0], plan = decayPlan(el, a, md);
+    steps.push({ Z: z, A: a, md, hl: iso[3], Q: plan.Q });
+    if (plan.Zf == null) { steps.push({ Z: null, A: null, end: 'fission' }); break; }
+    z = plan.Zf; a = plan.Af;
+  }
+  return steps;
+}
+const MODE_SYM = { A: 'α', 'B-': 'β⁻', 'B+': 'β⁺', EC: 'EC', SF: 'fission', n: 'n', p: 'p', '2B-': 'β⁻β⁻' };
+let chainG = null;
+function drawChainPath() {
+  if (chainG) { chainG.remove(); chainG = null; }
+  if (!chain.steps) return;
+  const pts = chain.steps.filter(s => s.Z).map(s => { const x = byZ(s.Z), A2 = x._g.c, B2 = x._t.c; return [A2[0] + (B2[0] - A2[0]) * layoutK, A2[1] + (B2[1] - A2[1]) * layoutK]; });
+  chainG = mk('g', {}, svg);
+  const upto = Math.min(pts.length, chain.i + 1);
+  if (upto > 1) mk('path', { class: 'chainpath', d: 'M' + pts.slice(0, upto).map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') }, chainG);
+  const zs = chain.steps.filter(s => s.Z).map(s => s.Z), seen = {};
+  pts.slice(0, upto).forEach((p, k) => { const rep = seen[zs[k]] = (seen[zs[k]] || 0) + 1, x = p[0] + 16 + (rep - 1) * 17, y = p[1] - 18;
+    mk('circle', { class: 'chaindot', cx: x, cy: y, r: 8 }, chainG); const tx = mk('text', { class: 'chainnum', x, y: y + 4, 'text-anchor': 'middle' }, chainG); tx.textContent = k; });
+}
+function chainHTML() {
+  if (!chain.steps) return '';
+  const S = chain.steps, nDec = S.filter(s => s.md).length, al = S.filter(s => s.md && s.md.code === 'A').length, be = S.filter(s => s.md && /B/.test(s.md.code)).length;
+  const last = S[S.length - 1], fin = last.Z ? byZ(last.Z) : null;
+  const seq = S.map((s, k) => (s.Z ? `<span class="nd ${k === chain.i ? 'on' : k < chain.i ? 'done' : ''}" title="${s.hl ? 'half-life ' + esc(s.hl) : esc(s.end || '')}">${sup(s.A)}${byZ(s.Z).sym}</span>` : `<span class="nd">${esc(s.end)}</span>`) + (s.md ? `<span class="ar">→${MODE_SYM[s.md.code] || s.md.code}→</span>` : '')).join('');
+  const Qs = S.filter(s => s.md && s.Q != null && s.Q > 0).reduce((t2, s) => t2 + s.Q, 0);
+  const done = chain.i >= S.length - 1;
+  return `<div class="chainbox"><div class="row2" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b style="font-weight:500">Decay chain</b>
+      <span class="decaybtns">${chain.running ? '<button id="chainStop">Stop</button>' : `<button id="chainPlay">${done ? 'Replay chain' : chain.i > 0 ? 'Continue' : 'Play chain'}</button>`}<button id="chainClose">Close</button></span></div>
+    <div class="chainseq">${seq}</div>
+    <div class="ln">${nDec} decay${nDec === 1 ? '' : 's'}${al || be ? ` (${[al ? `${al} alpha` : '', be ? `${be} beta` : ''].filter(Boolean).join(', ')})` : ''}${fin && last.end === 'stable' ? `, ending at stable ${fin.name}-${last.A}` : last.end ? `, ending: ${esc(last.end)}` : ''}. Total energy released ≈ ${Qs.toFixed(1)} MeV ${vt('calc')}. Each step follows that nucleus’s most likely decay; the numbered path on the ${layout === 'table' ? 'table' : 'spiral'} shows where the element moves.</div></div>`;
+}
+function openChain(e, A) {
+  clearTimeout(chain.timer); chain.steps = buildChain(e.Z, A); chain.i = 0; chain.running = false;
+  highlightSet(chain.steps.filter(s => s.Z).map(s => s.Z), true); drawChainPath(); animateTo(HOME, 600); renderNucInfo(e);
+}
+function chainStep() {
+  if (!chain.running || !chain.steps) return;
+  const s = chain.steps[chain.i];
+  if (!s || !s.md) { chain.running = false; renderNucInfo(byZ(current)); return; }
+  const el = byZ(s.Z); quarkPick[s.Z] = s.A;
+  select(s.Z, false); highlightSet(chain.steps.filter(q => q.Z).map(q => q.Z), true); drawChainPath();
+  if (mode !== 'nuc') { mode = 'nuc'; applyMode(); }
+  startDecay(el, s.A, s.md);
+}
+function chainAfterDecay() { // called when a decay animation ends
+  if (!chain.running) return;
+  chain.timer = setTimeout(() => {
+    chain.i++; drawChainPath();
+    const s = chain.steps[chain.i];
+    if (!s || !s.md) { chain.running = false; if (s && s.Z) { quarkPick[s.Z] = s.A; select(s.Z, false); highlightSet(chain.steps.filter(q => q.Z).map(q => q.Z), true); drawChainPath(); } renderNucInfo(byZ(current)); return; }
+    chainStep();
+  }, reduce ? 300 : 900);
+}
+
 function renderNucInfo(e) {
   const box = document.getElementById('nucInfo');
   if (mode !== 'nuc') { box.hidden = true; return; }
@@ -1925,7 +2059,7 @@ function renderNucInfo(e) {
   if (iso && iso[3] === 'stable') decayHTML = `<div class="ln"><b>Stable.</b> This nucleus has never been seen to decay. Tap an unshaded number in the isotope strip below to watch one that does.</div>`;
   else if (modes.length) {
     decayHTML = `<div class="ln"><b>Watch it decay</b> · any one nucleus decays at a random moment${iso[3] ? ` (half-life ${esc(iso[3])})` : ''}; here it happens now:</div>
-      <div class="decaybtns">${modes.map((m, i) => `<button data-mode="${i}" title="${esc(m.note || '')}">${esc(m.label)}${m.share ? ` <span>${esc(m.share)}</span>` : ''}</button>`).join('')}</div>`;
+      <div class="decaybtns">${modes.map((m, i) => `<button data-mode="${i}" title="${esc(m.note || '')}">${esc(m.label)}${m.share ? ` <span>${esc(m.share)}</span>` : ''}</button>`).join('')}${chain.steps ? '' : '<button id="chainOpen">Follow the decay chain →</button>'}</div>`;
     if (decay && decay.e === e && decay.A === A) {
       const P = decay.plan, Q = P.Q, eq = decayEquation(e, A, P, decay.md);
       const qTxt = decay.md.code === 'SF' || P.Zf == null ? `Energy released: about 200 MeV ${vt('est')}, mostly as the fragments’ motion.` : Q == null ? 'Energy released: masses not available for this decay.'
@@ -1941,12 +2075,20 @@ function renderNucInfo(e) {
     <div class="ln"><b>${e.sym}-${A}</b> · <span class="pn" style="background:var(--p-col)"></span>${e.Z} protons · <span class="pn" style="background:var(--n-col)"></span>${N} neutrons · ${N}/${e.Z} = ${(N / e.Z).toFixed(2)} neutrons per proton${life ? ' · ' + esc(life) : ''}</div>
     <div class="ln">radius ≈ ${Rfm.toFixed(1)} fm ${vt('est')}${ratio ? ` · about ${(+ratio.toPrecision(2)).toLocaleString('en-US')} times smaller than the whole atom` : ''}${be ? ` · binding energy ${be.toFixed(2)} MeV per nucleon ${vt('calc')}` : ''}</div>
     ${decayHTML}
+    ${chainHTML()}
+    ${samplerHTML(e, A, iso)}
     <div class="ln">Isotopes of ${esc(e.name)} by mass number — tap one; shaded = stable, lightly shaded = half-life over a year:</div>
     <div class="isostrip" role="group" aria-label="Isotopes">${strip}</div>`;
   box.querySelectorAll('.isostrip button').forEach(b => b.onclick = () => { quarkPick[e.Z] = +b.dataset.a; renderStats(e); dirty.nuc = true; applyMode(); });
   box.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => startDecay(e, A, modes[+b.dataset.mode]));
   const rp = document.getElementById('decReplay'); if (rp) rp.onclick = () => startDecay(e, A, decay.md);
   const nx = document.getElementById('decNext'); if (nx) nx.onclick = () => { const P = decay.plan; quarkPick[P.Zf] = P.Af; select(P.Zf, true); };
+  const co = document.getElementById('chainOpen'); if (co) co.onclick = () => openChain(e, A);
+  const cp = document.getElementById('chainPlay'); if (cp) cp.onclick = () => { if (chain.i >= chain.steps.length - 1) chain.i = 0; chain.running = true; chainStep(); };
+  const cs = document.getElementById('chainStop'); if (cs) cs.onclick = () => { chain.running = false; clearTimeout(chain.timer); renderNucInfo(byZ(current)); };
+  const cc = document.getElementById('chainClose'); if (cc) cc.onclick = () => { chain.running = false; clearTimeout(chain.timer); chain.steps = null; drawChainPath(); highlightSeries(null); renderNucInfo(byZ(current)); };
+  const sg = document.getElementById('sampGo'); if (sg) sg.onclick = () => { startSampler(e, A, iso); sg.textContent = 'Run again'; };
+  if (document.getElementById('sampCv')) { if (!sampler.run || sampler.run.key !== `${e.Z}-${A}`) sampler.run = null; drawSampler(); }
   const cur = box.querySelector('.isostrip button[aria-pressed="true"]'); if (cur) cur.parentElement.scrollLeft = cur.offsetLeft - cur.parentElement.clientWidth / 2;
 }
 function renderNucChips() {
