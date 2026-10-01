@@ -8,6 +8,7 @@ An interactive periodic table laid out as a spiral, with a pulsing electron-orbi
 
 - **Spiral table.** Each turn of the spiral is one period, winding outward from hydrogen at the center. Elements in the same group sit on the same ray. The lanthanides and actinides branch off between groups 2 and 3 into two outer arcs, in the spirit of J. F. Hyde's 1975 chart *The chemical elements and their periodic relationships*.
 - **Focus on click.** Click an element and the spiral zooms to it and dims everything outside its chemical family. You can scroll or pinch to zoom, drag to pan, use ← / → to step through atomic numbers, or pick from the element menu.
+- **Place in the table.** Each element shows its group and period, with buttons to light up its whole group (one ray of the spiral) or trace its period (one turn). A strip compares the outer electrons of every group member, so the repeating pattern is visible at a glance.
 - **Color by family or by cosmic origin.** In Cosmic origin mode, each tile of the spiral is split in proportion to where the Solar System's supply of that element was made: the Big Bang, cosmic-ray fission, dying low-mass stars, exploding massive stars, exploding white dwarfs, merging neutron stars, radioactive decay on Earth, or people. The categories follow Jennifer Johnson's *Origin of the Elements* table (Ohio State) and NASA Goddard's version of it.
 - **Orbital and nucleus viewer, five ways:**
   - **2D density.** Textbook probability-density slices, |ψ|² in the xz-plane, labeled (n, l, m) — one square for each occupied orbital. **True size** puts all of an atom's orbitals on one scale, so the inner shells shrink to specks as nuclear charge grows. **Fit each** enlarges every orbital to fill its square. **Hydrogen n ≤ 4** shows the classic hydrogen atlas.
@@ -17,6 +18,7 @@ An interactive periodic table laid out as a spiral, with a pulsing electron-orbi
   - **Shells.** No point electrons. Each shell is a tinted layer of Elektronium, and a radial density graph shows one hump per shell (area = electron count). **Replay filling** pours the electrons in, in the order subshells fill.
   - **Nucleus.** Every proton (red) and neutron (blue-grey) packed at true relative size, from hydrogen's lone proton to about 300 nucleons. **Cut open** shows the inside. Below it: the neutron-to-proton ratio, the nuclear radius and how many times smaller it is than the atom, the binding energy per nucleon from measured masses, and a strip of every isotope to switch between.
   - All views pulse. Pulsing can be switched off, and it stops automatically if your system asks for reduced motion.
+- **Honest numbers.** Values are measured unless tagged **calc** (worked out on the page), **est** (estimate) or **pred** (predicted for superheavy elements). Elements with several solid forms get a switch, so carbon shows graphite and diamond separately, and phosphorus, sulfur, selenium and tin show their forms too. Arsenic's sublimation and helium's refusal to freeze are explained instead of shown as contradictory numbers.
 - **Statistics drop-downs:**
   - Physical and thermal: melting and boiling point, density, heat capacity, conductivity, crystal structure.
   - Atomic: radii, electronegativity, electron affinity, oxidation states, and a chart of successive ionization energies.
@@ -76,6 +78,7 @@ python3 extract_elements.py   # element and isotope data -> elements.json
 node lda_atoms.js             # self-consistent radial wavefunctions -> radial.json (about 30 s)
 python3 history.py            # discovery history and fun facts -> history.json
 python3 origin.py             # cosmic origin shares -> origin.json
+python3 allotropes.py         # phase fixes and allotropes -> allotropes.json
 python3 build.py              # template.html + data -> ../index.html
 ```
 
@@ -87,7 +90,8 @@ tools/template.html     page source before the data is embedded
 tools/extract_elements.py
 tools/lda_atoms.js
 tools/history.py        discovery history, earlier names and fun facts for all 118 elements
-tools/origin.py         cosmic-origin shares and notes for all 118 elements
+tools/origin.py         cosmic-origin shares, reaction text and notes for all 118 elements
+tools/allotropes.py     phase fixes and allotropes (graphite/diamond, white/red/black phosphorus, …)
 tools/build.py
 .nojekyll               tells GitHub Pages to serve files as-is
 ```

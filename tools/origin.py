@@ -75,11 +75,56 @@ EARTH = {
  93: 'Traces form naturally in uranium ores, but almost all neptunium is made in reactors.',
  94: 'Traces form naturally in uranium ores, but almost all plutonium is made in reactors.',
 }
+# How each element is made by each process (the reaction, not just the place).
+S_PROC = 'Built up one neutron at a time over thousands of years (the slow s-process) inside red giant stars, then puffed out as the stars die.'
+R_PROC = 'Built in seconds by a flood of neutrons when two neutron stars collide (the rapid r-process). Some may also come from rare kinds of exploding star.'
+HOW = {
+ (1, BB): 'Hydrogen nuclei (protons) were left over from the first minutes after the Big Bang.',
+ (2, BB): 'Fused from protons and neutrons in the first few minutes after the Big Bang.',
+ (2, LM): 'Hydrogen fusion in stars like the Sun, shed in their winds.',
+ (2, MS): 'Hydrogen fusion in massive stars, blown out in winds and explosions.',
+ (3, BB): 'The Big Bang made a little lithium-7 in its first minutes.',
+ (3, CR): 'Cosmic rays smash carbon, nitrogen and oxygen nuclei in space and fuse helium nuclei, making lithium-6 and some lithium-7.',
+ (3, LM): 'Made from beryllium-7 in the hot outer layers of some red giants, then puffed out (the Cameron–Fowler process).',
+ (4, CR): 'Cosmic rays smash carbon, nitrogen and oxygen nuclei in space, chipping off beryllium (spallation). Stars destroy beryllium rather than make it.',
+ (5, CR): 'Cosmic rays smash carbon, nitrogen and oxygen nuclei in space, chipping off boron (spallation).',
+ (5, MS): 'In exploding massive stars, a burst of neutrinos knocks nucleons out of carbon, making boron-11.',
+ (6, LM): 'Helium fusion: three helium nuclei join into one carbon nucleus (the triple-alpha process) inside red giants; mixing carries it to the surface, and the star puffs it out as it dies.',
+ (6, MS): 'Helium fusion (three helium nuclei into carbon) inside massive stars, blown out in winds and explosions.',
+ (7, LM): 'The CNO cycle turns carbon into nitrogen while red giants burn hydrogen; the nitrogen is mixed to the surface and shed as the star dies.',
+ (7, MS): 'The CNO cycle in massive stars turns carbon into nitrogen; strong winds and explosions release it.',
+ (8, MS): 'Helium fusion adds a helium nucleus to carbon inside massive stars; the oxygen is blasted out when they explode.',
+ (9, LM): 'Made in the helium-burning shells of red giants, from nitrogen-14 through a short chain of captures, then shed.',
+ (9, MS): 'Neutrinos from exploding massive stars knock a nucleon out of neon-20; winds from very hot massive stars add more.',
+ (11, LM): 'The neon–sodium cycle in the hydrogen-burning shells of the heaviest red giants.',
+ (13, LM): 'The magnesium–aluminium cycle in the hydrogen-burning shells of the heaviest red giants.',
+ (26, MS): 'Made mostly as radioactive nickel-56 in the explosion of a massive star; it decays through cobalt-56 into iron within months.',
+ (26, WD): 'An exploding white dwarf burns to radioactive nickel-56, which decays into iron. A little over half of the Sun’s iron came this way.',
+}
+def how(z, k):
+    if (z, k) in HOW: return HOW[(z, k)]
+    if k == LM: return S_PROC
+    if k == NS: return R_PROC
+    if k == CR: return 'Cosmic rays smash heavier nuclei in space, chipping off lighter ones (spallation).'
+    if k == RD: return 'Made on Earth today as uranium and thorium decay in rocks.'
+    if k == HM: return 'Made in nuclear reactors and particle accelerators.'
+    if k == WD:
+        return ('Made in the thermonuclear blast of an exploding white dwarf, which burns carbon and oxygen into heavier elements.' if z < 21
+                else 'An exploding white dwarf burns to radioactive nickel and its neighbours, which decay into iron-peak elements like this one.')
+    if k == MS:
+        if z in (42, 44, 50, 62): return 'Its rare proton-rich isotopes are made in the shock of exploding massive stars (the p-process).'
+        if z >= 29: return 'Built one neutron at a time inside massive stars before they explode (the weak s-process).'
+        if z >= 21: return 'Made by silicon burning and in the shock of a massive star’s explosion, mostly as radioactive nuclei that decay into this element.'
+        if z in (10, 11, 12): return 'Carbon burning deep inside stars over 8 times the Sun’s mass; blasted out when they explode.'
+        return 'Oxygen and neon burning deep inside stars over 8 times the Sun’s mass, and explosive burning in the supernova itself.'
+    return ''
+
 out = {}
 for z, f in F.items():
     s = sum(f.values())
     assert abs(s - 1) < 1e-9, (z, s)
-    out[z] = {'f': f}
+    out[z] = {'f': f, 'w': {k: how(z, k) for k in f}}
+    assert all(out[z]['w'].values()), z
     if z in NOTES: out[z]['note'] = NOTES[z]
     if z in EARTH: out[z]['earth'] = EARTH[z]
 assert sorted(out) == list(range(1, 119))

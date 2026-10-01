@@ -5,6 +5,7 @@ Run from this folder, in order:
     node lda_atoms.js             # -> radial.json    (self-consistent atom solver, ~30 s)
     python3 history.py            # -> history.json   (discovery history and fun facts)
     python3 origin.py             # -> origin.json    (cosmic origin of each element)
+    python3 allotropes.py         # -> allotropes.json (phase fixes and allotropes)
     python3 build.py              # -> ../index.html
 """
 import base64, json, struct
@@ -13,6 +14,7 @@ elements = json.load(open('elements.json'))
 radial = json.load(open('radial.json'))
 history = json.load(open('history.json'))
 origin = json.load(open('origin.json'))
+allo = json.load(open('allotropes.json'))
 
 atoms = {}
 for z, rec in radial['atoms'].items():
@@ -23,7 +25,7 @@ for z, rec in radial['atoms'].items():
 rad = json.dumps({'XA': radial['XA'], 'DX': radial['DX'], 'NG': radial['NG'], 'atoms': atoms}, separators=(',', ':'))
 data = json.dumps(elements, separators=(',', ':'), ensure_ascii=False).replace('</', '<\\/')
 
-body = open('template.html').read().replace('__DATA__', data).replace('__RAD__', rad).replace('__HIST__', json.dumps(history, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')).replace('__ORIG__', json.dumps(origin, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/'))
+body = open('template.html').read().replace('__DATA__', data).replace('__RAD__', rad).replace('__HIST__', json.dumps(history, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')).replace('__ORIG__', json.dumps(origin, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')).replace('__ALLO__', json.dumps(allo, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/'))
 body = body.replace('<title>Periodic Spiral</title>', '<title>Elements in Style</title>', 1)
 body = body.replace('<h1>Periodic Spiral</h1>', '<h1>Elements in Style</h1>', 1)
 head, rest = body.split('</style>', 1)

@@ -9,7 +9,7 @@
   --bg-2: #151a21;
   --ink: #e7ebf0;
   --ink-2: #9aa5b3;
-  --ink-3: #5f6b79;
+  --ink-3: #7d8999;
   --rule: #252c36;
   --accent: #7fd6ff;
   --tile-s: 42%;
@@ -27,12 +27,12 @@
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #4c5663; --ink-3: #8a929c; --rule: #d3d7d0;
+    --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #3f4854; --ink-3: #69727d; --rule: #d3d7d0;
     --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; --q-up: #c2305f; --q-down: #1f6fae; --p-col: #d23f2a; --n-col: #5f7894; color-scheme: light;
   }
 }
 :root[data-theme="light"] {
-  --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #4c5663; --ink-3: #8a929c; --rule: #d3d7d0;
+  --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #3f4854; --ink-3: #69727d; --rule: #d3d7d0;
   --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; --q-up: #c2305f; --q-down: #1f6fae; --p-col: #d23f2a; --n-col: #5f7894; color-scheme: light;
 }
 * { box-sizing: border-box; }
@@ -54,7 +54,7 @@ button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
 main.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 440px); gap: 28px; margin-top: 18px; align-items: start; }
 .chart { min-width: 0; position: relative; }
 .chart-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.hint { color: var(--ink-3); font-size: 12px; font-family: var(--f-data); }
+.hint { color: var(--ink-2); font-size: 13px; }
 .svgbox { position: relative; border-radius: 12px; background: radial-gradient(circle at 50% 50%, var(--bg-2), var(--bg) 70%); touch-action: none; overflow: hidden; }
 #spiral { display: block; width: 100%; height: auto; max-height: 84vh; cursor: grab; user-select: none; }
 #spiral.dragging { cursor: grabbing; }
@@ -64,18 +64,20 @@ main.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 4
 .tile { cursor: pointer; transition: opacity .35s; }
 .tile:hover path { filter: brightness(1.18); }
 .tile.dim { opacity: .22; }
-.tile.sel path { stroke: var(--accent); stroke-width: 2.6; }
+.tile.sel path { stroke: var(--accent); stroke-width: 4; filter: drop-shadow(0 0 5px var(--accent)); }
 .track { fill: var(--ink); opacity: .04; }
-.glabel { fill: var(--ink-3); font: 11px var(--f-data); }
+.glabel { fill: var(--ink-2); font: 500 15px var(--f-data); }
 .arclabel { fill: var(--ink-2); font: 12px var(--f-display); letter-spacing: .22em; }
 .leader { stroke: var(--ink-3); stroke-dasharray: 3 4; fill: none; }
-.centre text { fill: var(--ink-3); font: 10px var(--f-data); letter-spacing: .1em; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.centre text { fill: var(--ink-2); font: 11px var(--f-data); letter-spacing: .1em; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
 .legend button { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; padding: 4px 9px; }
 .sw { width: 11px; height: 11px; border-radius: 3px; background: hsl(var(--h) var(--tile-s) var(--tile-l)); border: 1px solid var(--ink-3); }
-.foot { color: var(--ink-3); font-size: 12px; margin-top: 10px; max-width: 80ch; }
+.foot { color: var(--ink-2); font-size: 13px; margin: 28px 0 0; max-width: 80ch; }
 
-aside.panel { min-width: 0; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 24px); overflow: auto; padding-right: 2px; }
+aside.panel { min-width: 0; }
+.chart { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 10px); align-self: start; }
+#spiral { max-height: calc(100vh - 150px); }
 .idcard { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: center; margin-bottom: 12px; }
 .bigsym { grid-row: span 4; width: 84px; height: 84px; border-radius: 12px; display: grid; place-items: center; background: hsl(var(--h) var(--tile-s) var(--tile-l)); color: var(--tile-ink); position: relative; }
 .bigsym b { font: 400 40px/1 var(--f-display); }
@@ -91,14 +93,14 @@ aside.panel { min-width: 0; position: sticky; top: calc(env(safe-area-inset-top,
 .well .ov.b { bottom: 10px; }
 .well .ov > * { pointer-events: auto; }
 .well .tag { font: 11px var(--f-data); color: #9fb0c2; letter-spacing: .06em; }
-.xinfo { margin: 8px 0 0; font: 12px/1.5 var(--f-data); color: var(--ink-2); display: grid; gap: 2px; }
+.xinfo { margin: 10px 0 0; font: 13px/1.5 var(--f-body); font-variant-numeric: tabular-nums; color: var(--ink-2); display: grid; gap: 2px; }
 .xinfo b { color: var(--ink); font-weight: 500; }
 .xinfo .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px 0 6px; vertical-align: -1px; box-shadow: 0 0 8px currentColor; border: 0; }
 .well button { background: rgba(20,26,34,.72); color: #dbe4ee; border-color: #2a3542; font: 12px var(--f-data); padding: 4px 8px; }
 .well button[aria-pressed="true"] { color: #fff; border-color: #7fd6ff; }
 .chip { display: inline-flex; gap: 5px; align-items: center; }
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
-.wellnote { color: var(--ink-3); font-size: 12px; margin: 6px 0 14px; }
+.wellnote { color: var(--ink-2); font-size: 13.5px; line-height: 1.55; margin: 12px 0 20px; max-width: 70ch; }
 
 details { border-top: 1px solid var(--rule); }
 details:last-of-type { border-bottom: 1px solid var(--rule); }
@@ -111,6 +113,7 @@ summary small { font: 12px var(--f-data); color: var(--ink-3); letter-spacing: 0
 dl.kv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 5px 14px; margin: 0; }
 dl.kv dt { color: var(--ink-2); font-size: 13px; }
 dl.kv dd { margin: 0; font: 13px var(--f-data); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+dl.kv dd.txt { font: 13.5px/1.45 var(--f-body); }
 .na { color: var(--ink-3); }
 .note { color: var(--ink-2); font-size: 13px; margin: 10px 0 0; }
 .ies { display: grid; gap: 3px; margin-top: 10px; }
@@ -142,6 +145,23 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 .hist .fact b { color: var(--accent); }
 .hist .fact span { font: 400 16px/1.45 var(--f-display); letter-spacing: .01em; }
 .tl { width: 100%; height: auto; display: block; }
+.vt { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; font: 500 10px/16px var(--f-data); letter-spacing: .04em; vertical-align: 1px; border: 1px solid currentColor; text-decoration: none; cursor: help; }
+.vt.calc { color: var(--accent); } .vt.est { color: #c98a2b; } .vt.pred { color: #b06fd8; }
+.provkey { color: var(--ink-2); font-size: 12.5px; margin: 0 0 8px; }
+.forms { margin: 0 0 10px; }
+.formnote { color: var(--ink-2); font-size: 13px; margin: 0 0 10px; }
+.place { border: 1px solid var(--rule); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; display: grid; gap: 10px; background: var(--bg-2); }
+.place .hd { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.place .hd b { font: 400 15px var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
+.place .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.place .btns button { font-size: 12.5px; }
+.cmp { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.cmp button { flex: 0 0 auto; display: grid; gap: 2px; justify-items: center; min-width: 62px; padding: 6px 8px; border-radius: 8px; background: var(--bg); }
+.cmp button b { font: 400 18px/1 var(--f-display); }
+.cmp button i { font: 11px var(--f-data); font-style: normal; color: var(--ink-2); white-space: nowrap; }
+.cmp button[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.place p { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.tile.rel path { stroke: var(--ink); stroke-width: 1.8; }
 .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
 .seg button { border: 0; border-radius: 0; padding: 5px 10px; font-size: 12px; }
 .seg button + button { border-left: 1px solid var(--rule); }
@@ -156,7 +176,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 .olist .r small { grid-column: 2 / 4; color: var(--ink-2); font-size: 12.5px; }
 .legend .sw.o { background: hsl(var(--oh) var(--os) var(--tile-l)); }
 .nucinfo { margin: 8px 0 0; display: grid; gap: 8px; }
-.nucinfo .ln { font: 12px/1.5 var(--f-data); color: var(--ink-2); }
+.nucinfo .ln { font: 13px/1.5 var(--f-body); color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .nucinfo .ln b { color: var(--ink); font-weight: 500; }
 .nucinfo .pn { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
 .isostrip { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 2px; }
@@ -176,10 +196,14 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 .tl .lbl { fill: var(--ink); font: 11px var(--f-data); }
 
 [hidden] { display: none !important; }
+.well.big { position: fixed; z-index: 60; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(94vw, 92vh); height: auto; aspect-ratio: 1; max-width: none; box-shadow: 0 20px 80px rgba(0,0,0,.6); }
+@media (max-width: 700px) { .well.big { width: 96vw; height: 84vh; aspect-ratio: auto; } }
+.backdrop { position: fixed; inset: 0; z-index: 55; background: rgba(5,7,10,.72); }
 .well canvas#slice { cursor: pointer; }
 @media (max-width: 980px) {
   main.grid { grid-template-columns: minmax(0, 1fr); }
-  aside.panel { position: static; max-height: none; overflow: visible; }
+  .chart { position: static; }
+  #spiral { max-height: none; }
 }
 @media (prefers-reduced-motion: reduce) { .tile, .tile path { transition: none; } }
 </style>
@@ -207,13 +231,14 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
           <button id="resetView">Whole spiral</button>
         </div>
       </div>
-      <div class="svgbox"><svg id="spiral" role="group" aria-label="Elements arranged on a spiral"></svg></div>
       <div class="legend" id="legend"></div>
-      <p class="foot">Lanthanides (La–Yb) and actinides (Ac–No) branch off between groups 2 and 3 into the two outer arcs. In Cosmic origin coloring, each tile is split in proportion to where the Solar System’s supply of that element was made. Lu and Lr sit in group 3, as in the IUPAC 2021 layout. Element data from the mendeleev database (NIST, NUBASE and CRC sources); values for elements past fermium are mostly predictions.</p>
+      <div class="svgbox"><svg id="spiral" role="group" aria-label="Elements arranged on a spiral"></svg></div>
+
     </section>
 
     <aside class="panel" aria-label="Selected element">
       <div class="idcard" id="idcard"></div>
+      <section class="place" id="place" aria-label="Place in the table"></section>
       <div class="well" id="well">
         <canvas id="orb" aria-label="3D orbital shapes and Elektronium view" hidden></canvas>
         <canvas id="slice" aria-label="Probability density slices of the occupied orbitals"></canvas>
@@ -226,7 +251,8 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
             <button id="modeElek" aria-pressed="false">Elektronium</button>
             <button id="modeShells" aria-pressed="false">Shells</button>
             <button id="modeNuc" aria-pressed="false">Nucleus</button>
-            <button id="pulseBtn" aria-pressed="true">Pulse</button>
+            <button id="pulseBtn" aria-pressed="true" title="Decorative glow. A settled atom’s electron density does not change in time; Excite (in Elektronium) shows real motion.">Pulse</button>
+            <button id="expandBtn" aria-pressed="false" title="Enlarge the viewer (Esc to close)">Expand</button>
           </div>
         </div>
         <div class="ov b" id="sliceChips"></div>
@@ -235,6 +261,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
         <div class="ov b" id="shellChips" hidden></div>
         <div class="ov b" id="nucChips" hidden></div>
       </div>
+      <div class="backdrop" id="backdrop" hidden></div>
       <div class="xinfo" id="xInfo" hidden></div>
       <div class="nucinfo" id="nucInfo" hidden></div>
       <p class="wellnote" id="wellNote"></p>
@@ -243,12 +270,14 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
       <div id="stats"></div>
     </aside>
   </main>
+  <p class="foot">Lanthanides (La–Yb) and actinides (Ac–No) branch off between groups 2 and 3 into the two outer arcs. In Cosmic origin coloring, each tile is split in proportion to where the Solar System’s supply of that element was made. Lu and Lr sit in group 3, as in the IUPAC 2021 layout. Element data from the mendeleev database (NIST, NUBASE and CRC sources); values for elements past fermium are mostly predictions.</p>
 </div>
 
 <script id="data" type="application/json">__DATA__</script>
 <script id="rad" type="application/json">__RAD__</script>
 <script id="hist-data" type="application/json">__HIST__</script>
 <script id="orig-data" type="application/json">__ORIG__</script>
+<script id="allo-data" type="application/json">__ALLO__</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
@@ -333,7 +362,7 @@ const ORIG = JSON.parse(document.getElementById('orig-data').textContent);
 const PROC = {
   bb: { name: 'Big Bang', h: 268, s: '46%', what: 'Made in the first few minutes of the universe.' },
   cr: { name: 'Cosmic-ray fission', h: 322, s: '58%', what: 'Chipped off heavier nuclei by fast particles flying through space.' },
-  lm: { name: 'Dying low-mass stars', h: 30, s: '78%', what: 'Built one neutron at a time inside red giant stars (stars up to about 8 times the Sun’s mass), then puffed out as they died.' },
+  lm: { name: 'Dying low-mass stars', h: 30, s: '78%', what: 'Made inside red giant stars (up to about 8 times the Sun’s mass), by fusion or by slow neutron capture, then puffed out as they die.' },
   ms: { name: 'Exploding massive stars', h: 205, s: '62%', what: 'Fused inside stars over 8 times the Sun’s mass and blasted out when they collapsed and exploded.' },
   wd: { name: 'Exploding white dwarfs', h: 54, s: '78%', what: 'Made when a white dwarf star gains too much mass and blows apart (a Type Ia supernova).' },
   ns: { name: 'Merging neutron stars', h: 152, s: '52%', what: 'Built in seconds by a flood of neutrons when two neutron stars collide (the rapid neutron-capture process).' },
@@ -447,6 +476,7 @@ let litSeries = null, colorMode = 'family';
 const legend = document.getElementById('legend');
 let legendBtns = [];
 function highlightSeries(s) {
+  clearTimeout(traceTimer); clearRel();
   litSeries = s;
   EL.forEach(e => {
     const on = !s || (colorMode === 'family' ? e.series === s : (ORIG[e.Z].f[s] || 0) >= 0.25);
@@ -478,6 +508,55 @@ document.getElementById('colFamily').onclick = () => setColorMode('family');
 document.getElementById('colOrigin').onclick = () => setColorMode('origin');
 buildLegend();
 
+/* ---------- groups and periods ---------- */
+const GROUP_INFO = {
+  1: 'One outer s electron, easily given away: soft, very reactive metals that form +1 ions. Hydrogen shares the column but is a gas.',
+  2: 'Two outer s electrons, given up to form +2 ions. Reactive metals, though less so than group 1.',
+  3: 'Transition metals: an inner d subshell is filling while the outer s shell already holds electrons. With similar outer electrons, members of a column behave alike.',
+  11: 'The coinage metals. Each has a full inner d subshell and a single outer s electron, which makes them excellent conductors.',
+  12: 'Full d subshell and two outer s electrons: zinc, cadmium and mercury act more like group 2 than like other transition metals.',
+  13: 'Three outer electrons (s² p¹). Boron is a metalloid; the rest are metals.',
+  14: 'Four outer electrons (s² p²). Going down, the column turns from non-metal carbon through silicon and germanium to metallic tin and lead.',
+  15: 'Five outer electrons (s² p³). Nitrogen and phosphorus are non-metals; bismuth at the bottom is a metal.',
+  16: 'Six outer electrons (s² p⁴); they tend to gain two more to fill the shell, as in water, H₂O.',
+  17: 'Halogens: seven outer electrons (s² p⁵), one short of a full shell, so they grab an electron eagerly.',
+  18: 'Noble gases: full outer shells (helium s², the rest s² p⁶), so they barely react with anything.'
+};
+const PERIOD_SUBS = { 1: '1s', 2: '2s and 2p', 3: '3s and 3p', 4: '4s, 3d and 4p', 5: '5s, 4d and 5p', 6: '6s, 4f, 5d and 6p', 7: '7s, 5f, 6d and 7p' };
+const valence = e => e.econf.replace(/^\[[A-Za-z]+\]\s*/, '').split(/\s+/).filter(s => !(e.block === 's' || e.block === 'p') || !/^\d(d10|f14)$/.test(s)).join(' ').replace(/([spdf])(\d+)/g, (m, a, b) => a + sup(b)).replace(/([spdf])(?=\s|$)/g, '$1¹');
+function groupOf(e) {
+  if (isF(e.Z)) { const i = e.Z <= 70 ? e.Z - 57 : e.Z - 89; return { label: e.Z <= 70 ? 'Lanthanides' : 'Actinides', members: [byZ(57 + i), byZ(89 + i)], f: true }; }
+  const c = colOf(e);
+  return { label: `Group ${c + 1}`, members: EL.filter(x => !isF(x.Z) && colOf(x) === c), n: c + 1 };
+}
+let traceTimer = 0;
+function highlightSet(zs, rel) {
+  clearTimeout(traceTimer); litSeries = '__set';
+  legendBtns.forEach(b => b.setAttribute('aria-pressed', 'false'));
+  const S = new Set(zs);
+  EL.forEach(x => { tiles[x.Z].classList.toggle('dim', !S.has(x.Z)); tiles[x.Z].classList.toggle('rel', !!rel && S.has(x.Z) && x.Z !== current); });
+}
+function clearRel() { EL.forEach(x => tiles[x.Z].classList.remove('rel')); }
+function traceSet(zs) { // light up one element at a time, in order
+  highlightSet([], false); animateTo(HOME, 500);
+  let i = 0; const step = () => { if (i >= zs.length) return; tiles[zs[i]].classList.remove('dim'); tiles[zs[i]].classList.add('rel'); i++; traceTimer = setTimeout(step, reduce ? 0 : Math.max(45, 900 / zs.length)); };
+  traceTimer = setTimeout(step, reduce ? 0 : 450);
+}
+function renderPlace(e) {
+  const g = groupOf(e), per = EL.filter(x => x.period === e.period).map(x => x.Z);
+  const info = g.f ? 'f-block elements have no group number: the 4f (lanthanides) or 5f (actinides) subshell fills deep inside the atom, so neighbours are chemically very alike. Each one has a partner in the other series, on the neighbouring arc.'
+    : (GROUP_INFO[g.n] || GROUP_INFO[3]);
+  document.getElementById('place').innerHTML = `
+    <div class="hd"><b>${g.label} · Period ${e.period}</b>
+      <span class="btns"><button id="hlGroup">Light up ${g.f ? 'partners' : 'group'}</button><button id="hlPeriod">Trace period</button></span></div>
+    <div class="cmp" role="group" aria-label="${g.label}: outer electrons">${g.members.map(x => `<button data-z="${x.Z}" ${x.Z === e.Z ? 'aria-current="true"' : ''} title="${esc(x.name)}"><b>${x.sym}</b><i>${valence(x)}</i></button>`).join('')}</div>
+    <p>${esc(info)} ${g.f ? '' : 'Compare the outer electrons above: the same pattern repeats one shell further out each step down.'}</p>
+    <p>Period ${e.period} is one turn of the spiral: ${per.length} elements, filling ${PERIOD_SUBS[e.period]}${e.period > 1 ? ', from an alkali metal to a noble gas' : ''}.</p>`;
+  document.getElementById('hlGroup').onclick = () => { highlightSet(g.members.map(x => x.Z), true); animateTo(HOME, 500); };
+  document.getElementById('hlPeriod').onclick = () => traceSet(per);
+  document.querySelectorAll('#place .cmp button').forEach(b => b.onclick = () => { const keep = g.members.map(x => x.Z); select(+b.dataset.z, false); highlightSet(keep, true); });
+}
+
 /* ---------- element select ---------- */
 const selEl = document.getElementById('elSelect');
 EL.forEach(e => { const o = document.createElement('option'); o.value = e.Z; o.textContent = `${e.Z} · ${e.sym} · ${e.name}`; selEl.appendChild(o); });
@@ -489,12 +568,19 @@ document.addEventListener('keydown', ev => {
 });
 
 /* ---------- stats panel ---------- */
+const ALLO = JSON.parse(document.getElementById('allo-data').textContent);
+const alloPick = {};
+const VT = { calc: ['calc', 'Worked out on this page from other data or a model'], est: ['est', 'An estimate or rule of thumb, not a direct measurement'], pred: ['pred', 'Predicted by theory; too few atoms have ever been made to measure it'] };
+const vt = k => `<abbr class="vt ${k}" title="${VT[k][1]}">${VT[k][0]}</abbr>`;
+const LATT = { BCC: 'Body-centred cubic', FCC: 'Face-centred cubic', HEX: 'Hexagonal', DIA: 'Diamond cubic', CUB: 'Cubic', TET: 'Tetragonal', ORC: 'Orthorhombic', RHL: 'Rhombohedral', MCL: 'Monoclinic', TRI: 'Triclinic', SC: 'Simple cubic' };
+const phaseOf = e => (ALLO[e.Z] && ALLO[e.Z].phase) || e.phase;
 const idcard = document.getElementById('idcard'), stats = document.getElementById('stats');
 const openState = { overview: true, thermal: true, atomic: false, magnetic: true, isotopes: true, quarks: true, config: false };
 let showAllIso = false;
 const val = (v, unit = '', d) => v == null || v === '' ? '<span class="na">—</span>' : `${typeof v === 'number' ? fmt(v, d) : esc(v)}${unit ? ' ' + unit : ''}`;
 const temp = K => K == null ? '<span class="na">—</span>' : `${fmt(K, 5)} K <span class="na">(${(K - 273.15).toFixed(1)} °C)</span>`;
-const kv = rows => `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+const isProse = v => { const s = String(v).replace(/<[^>]+>/g, '').trim(); return s.length > 24 && /[a-z]{4,}/i.test(s) && !/^[\d≈~+\-−<.(]/.test(s); };
+const kv = rows => `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd${isProse(v) ? ' class="txt"' : ''}>${v}</dd>`).join('')}</dl>`;
 const termHTML = m => { const t = m.term.match(/^(\d+)([A-Z]+|L\d+)(.+)$/); return t ? `<sup>${t[1]}</sup>${t[2]}<sub>${t[3]}</sub>${m.odd ? '°' : ''}` : esc(m.term); };
 const LCAP = { s: 2, p: 6, d: 10, f: 14 };
 
@@ -504,6 +590,8 @@ function section(key, title, badge, inner) {
 
 function renderStats(e) {
   const h = SERIES[e.series] ?? 0;
+  const PR = e.Z >= 100 ? vt('pred') : '';
+  const pv = (v, unit, d) => v == null || v === '' ? val(v) : val(v, unit, d) + PR;
   idcard.innerHTML = `<div class="bigsym" style="--h:${h}"><i>${e.Z}</i><b>${e.sym}</b></div>
     <h2>${esc(e.name)}</h2>
     <div class="meta">${SERIES_LABEL[e.series] || e.series} · ${fmt(e.mass, 6)} u</div>
@@ -513,17 +601,24 @@ function renderStats(e) {
   const overview = kv([
     ['Atomic number', e.Z], ['Standard atomic weight', val(e.mass, 'u', 7)],
     ['Group · period · block', `${grp ?? 'f-block'} · ${e.period} · ${e.block}`],
-    ['Phase at 25 °C', val(e.phase)], ['Radioactive', e.radioactive ? 'Yes' : 'No'],
+    ['Phase at 25 °C', phaseOf(e) ? esc(phaseOf(e)) + PR : (e.Z >= 104 ? 'Unknown: only a few atoms have ever been made' + vt('pred') : val(null))], ['Radioactive', e.radioactive ? 'Yes' : 'No'],
     ['Crustal abundance', e.crust != null ? `${fmt(e.crust)} mg/kg` : '<span class="na">—</span>']
   ]) + (e.desc ? `<p class="desc">${esc(e.desc)}</p>` : '') + (e.uses ? `<p class="desc"><b>Uses.</b> ${esc(e.uses)}</p>` : '');
 
-  const thermal = kv([
-    ['Melting point', temp(e.mp)], ['Boiling point', temp(e.bp)],
-    ['Density', val(e.density, e.phase === 'Gas' ? 'g/cm³ (gas)' : 'g/cm³')],
-    ['Specific heat', val(e.cp, 'J/(g·K)')], ['Thermal conductivity', val(e.k, 'W/(m·K)')],
-    ['Heat of fusion', val(e.fus, 'kJ/mol')], ['Heat of vaporization', val(e.vap, 'kJ/mol')],
-    ['Crystal structure', e.lattice ? `${esc(e.lattice)}${e.lat_c ? ` · a = ${e.lat_c} Å` : ''}` : '<span class="na">—</span>']
-  ]);
+  const A = ALLO[e.Z] || {}, fi = A.forms ? (alloPick[e.Z] ?? 0) : -1, F = fi >= 0 ? A.forms[fi] : null;
+  const ph = phaseOf(e);
+  const mpCell = F ? (F.mp != null ? temp(F.mp) : esc(F.mpNote || '—')) : A.mpNote ? esc(A.mpNote) : temp(e.mp) + (e.mp ? PR : '');
+  const bpVal = F ? F.bp : e.bp, bpLabel = (F && F.bpLabel) || A.bpLabel || 'Boiling point';
+  const own = !F || fi === 0; // database values describe the ordinary form
+  const thermal = (A.forms ? `<div class="forms"><span class="seg" role="group" aria-label="Form of ${esc(e.name)}">${A.forms.map((f, i) => `<button data-form="${i}" aria-pressed="${i === fi}">${esc(f.name)}</button>`).join('')}</span></div><p class="formnote">${esc(F.note)}</p>` : '') + kv([
+    ['Melting point', mpCell], [bpLabel, bpVal == null ? '<span class="na">—</span>' : temp(bpVal) + PR],
+    ['Density', F ? `${F.density} g/cm³` : pv(e.density, ph === 'Gas' ? 'g/cm³ (gas)' : 'g/cm³')],
+    ['Crystal structure', F ? esc(F.structure) : e.lattice ? `${esc(LATT[e.lattice] || e.lattice)}${e.lat_c ? ` · a = ${e.lat_c} Å` : ''}${PR}` : '<span class="na">—</span>'],
+    ...(F && F.extra ? F.extra.map(([k, v]) => [esc(k), esc(v)]) : []),
+    ['Thermal conductivity', F && F.k ? esc(F.k) : own && e.Z !== 6 ? pv(e.k, 'W/(m·K)') : '<span class="na">—</span>'],
+    ['Specific heat', own ? pv(e.cp, 'J/(g·K)') : '<span class="na">—</span>'],
+    ['Heat of fusion', own ? pv(e.fus, 'kJ/mol') : '<span class="na">—</span>'], ['Heat of vaporization', own ? pv(e.vap, 'kJ/mol') : '<span class="na">—</span>']
+  ]) + (A.why ? `<p class="desc"><b>Why the forms differ.</b> ${esc(A.why)}</p>` : '');
 
   let ies = '';
   if (e.ies.length) {
@@ -535,19 +630,19 @@ function renderStats(e) {
     }).join('') + `</div><p class="note">Successive ionization energies on a log scale. Orange marks a jump of more than 2.6× — the point where the next electron has to come out of a closed inner shell.</p>`;
   }
   const atomic = kv([
-    ['Atomic radius', val(e.radius, 'pm')], ['Covalent radius', val(e.cov, 'pm')], ['Van der Waals radius', val(e.vdw, 'pm')],
-    ['Electronegativity (Pauling)', val(e.en)], ['First ionization energy', val(e.ie1, 'eV', 5)],
-    ['Electron affinity', val(e.ea, 'eV', 4)], ['Main oxidation states', e.ox && e.ox.length ? e.ox.map(o => (o > 0 ? '+' : '') + o).join(', ') : '<span class="na">—</span>']
+    ['Atomic radius', pv(e.radius, 'pm')], ['Covalent radius', pv(e.cov, 'pm')], ['Van der Waals radius', pv(e.vdw, 'pm')],
+    ['Electronegativity (Pauling)', pv(e.en)], ['First ionization energy', pv(e.ie1, 'eV', 5)],
+    ['Electron affinity', pv(e.ea, 'eV', 4)], ['Main oxidation states', e.ox && e.ox.length ? e.ox.map(o => (o > 0 ? '+' : '') + o).join(', ') : '<span class="na">—</span>']
   ]) + ies;
 
   const m = e.mag;
   const nucl = e.isotopes.filter(i => i[6] != null && (i[3] === 'stable' || (i[4] && i[4] > 3.15e7)));
   const magnetic = kv([
     ['Unpaired electrons', m.unpaired],
-    ['Ground term (Hund’s rules)', termHTML(m)],
-    ['Spin-only moment', `${m.muS} μ<sub>B</sub>`],
-    ['Landé g<sub>J</sub>', m.J === 0 ? '<span class="na">— (J = 0)</span>' : m.gJ],
-    ['Free-atom moment g<sub>J</sub>√J(J+1)', `${m.muJ} μ<sub>B</sub>`],
+    ['Ground term (Hund’s rules)', termHTML(m) + vt('est')],
+    ['Spin-only moment', `${m.muS} μ<sub>B</sub>` + vt('calc')],
+    ['Landé g<sub>J</sub>', m.J === 0 ? '<span class="na">— (J = 0)</span>' : m.gJ + vt('calc')],
+    ['Free-atom moment g<sub>J</sub>√J(J+1)', `${m.muJ} μ<sub>B</sub>` + vt('calc')],
     ['Bulk magnetic order', e.magnote ? esc(e.magnote) : '<span class="na">No long-range order</span>'],
     ['Nuclear moments', nucl.length ? nucl.slice(0, 6).map(i => `<sup>${i[0]}</sup>${e.sym}: ${i[6] > 0 ? '+' : ''}${i[6]} μ<sub>N</sub>`).join('<br>') : '<span class="na">—</span>']
   ]) + `<p class="note">Atomic values are for an isolated atom in its ground state; the term symbol is a Hund’s-rule estimate and a few elements (Ce, Th and some superheavies) break the rule. Nuclear magnetic moments come from measured g-factors, μ = g·I.</p>`;
@@ -580,25 +675,27 @@ function renderStats(e) {
     ['Configuration', esc(e.econf)],
     ['Full filling order', e.order.map(s => s.replace(/(\d)([spdf])(\d+)/, (a, n, l, c) => n + l + sup(c))).join(' ')],
     ['Shell occupancy', shellCounts(e).join(' · ')],
-    ['Effective charge (Slater)', Object.entries(e.zeff).map(([k, v]) => `${k} ${v}`).join(', ')]
-  ]) + boxes + `<div class="tablewrap" style="max-height:260px"><table><thead><tr><th>Subshell</th><th>e⁻</th><th>Energy (eV)</th><th>⟨r⟩ (pm)</th></tr></thead><tbody>${e.order.map(s => { const m = s.match(/(\d)([spdf])(\d+)/), rd = radFor(e.Z, m[1] + m[2]); return `<tr><td>${m[1]}${m[2]}</td><td>${m[3]}</td><td>${fmt(rd.E, 4)}</td><td>${fmt(rd.rbar * 52.918, 3)}</td></tr>`; }).join('')}</tbody></table></div><p class="note">Orbital energies and mean radii from a self-consistent local-density calculation of the free atom (non-relativistic, so the heaviest elements are approximate).</p>` + `<p class="note">Boxes show the outer subshells filled by Hund’s rule — each orbital takes one electron before any pairs up. Unpaired arrows are what give the atom its magnetic moment.</p>`;
+    ['Effective charge (Slater)', Object.entries(e.zeff).map(([k, v]) => `${k} ${v}`).join(', ') + vt('est')]
+  ]) + boxes + `<div class="tablewrap" style="max-height:260px"><table><thead><tr><th>Subshell</th><th>e⁻</th><th>Energy (eV) ${vt('calc')}</th><th>⟨r⟩ (pm) ${vt('calc')}</th></tr></thead><tbody>${e.order.map(s => { const m = s.match(/(\d)([spdf])(\d+)/), rd = radFor(e.Z, m[1] + m[2]); return `<tr><td>${m[1]}${m[2]}</td><td>${m[3]}</td><td>${fmt(rd.E, 4)}</td><td>${fmt(rd.rbar * 52.918, 3)}</td></tr>`; }).join('')}</tbody></table></div><p class="note">Orbital energies and mean radii from a self-consistent local-density calculation of the free atom (non-relativistic, so the heaviest elements are approximate).</p>` + `<p class="note">Boxes show the outer subshells filled by Hund’s rule — each orbital takes one electron before any pairs up. Unpaired arrows are what give the atom its magnetic moment.</p>`;
 
 
   const qk = quarkSection(e);
-  stats.innerHTML =
+  const mpBadge = F ? (F.mp ? `mp ${fmt(F.mp, 4)} K` : esc(F.name)) : A.mpNote ? esc(ph || '') : e.mp ? `mp ${fmt(e.mp, 4)} K` : '';
+  stats.innerHTML = `<p class="provkey">Numbers are measured unless tagged ${vt('calc')} worked out here, ${vt('est')} estimate, or ${vt('pred')} predicted.</p>` +
     section('overview', 'Overview', '', overview) +
-    section('thermal', 'Physical &amp; thermal', e.mp ? `mp ${fmt(e.mp, 4)} K` : '', thermal) +
+    section('thermal', 'Physical &amp; thermal', mpBadge, thermal) +
     section('atomic', 'Atomic properties', e.en ? `χ ${e.en}` : '', atomic) +
     section('magnetic', 'Magnetism', `${m.muS} μB`, magnetic) +
     section('isotopes', 'Isotopes &amp; half-life', `${known} known`, iso) +
     section('quarks', 'Quarks &amp; nucleons', qk.badge, qk.html) +
     section('config', 'Electron configuration', `${m.unpaired} unpaired`, config);
-  renderHistory(e); renderOrigin(e);
+  renderHistory(e); renderOrigin(e); renderPlace(e);
   stats.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => { openState[d.dataset.k] = d.open; }));
   const qs = document.getElementById('quarkIso');
   if (qs) qs.onchange = () => { quarkPick[e.Z] = +qs.value; renderStats(e); dirty.nuc = true; if (mode === 'nuc') applyMode(); document.getElementById('quarkIso')?.focus(); };
   const it = document.getElementById('isoToggle');
   if (it) it.onclick = () => { showAllIso = !showAllIso; renderStats(e); };
+  stats.querySelectorAll('[data-form]').forEach(b => b.onclick = () => { alloPick[e.Z] = +b.dataset.form; renderStats(e); stats.querySelector(`[data-form="${b.dataset.form}"]`)?.focus(); });
 }
 
 /* ---------- protons / neutrons ---------- */
@@ -626,7 +723,7 @@ function quarkSection(e) {
     ['Protons (uud)', Z], ['Neutrons (udd)', N],
     ['Up quarks', up.toLocaleString('en-US')], ['Down quarks', dn.toLocaleString('en-US')],
     ['Total quarks', (3 * A).toLocaleString('en-US')], ['Electrons', Z],
-    ['Quark rest mass', `${fmt(restMeV, 4)} MeV · ${share.toFixed(2)}% of the atom’s mass`]
+    ['Quark rest mass', `${fmt(restMeV, 4)} MeV · ${share.toFixed(2)}% of the atom’s mass` + vt('calc')]
   ]) + `<div class="qbar" role="img" aria-label="${up} up and ${dn} down quarks"><span class="u" style="flex:${up}"></span><span class="d" style="flex:${dn}"></span></div>
     <div class="qkey"><span><i style="background:var(--q-up)"></i>up ${(up / (3 * A) * 100).toFixed(1)}%</span><span><i style="background:var(--q-down)"></i>down ${(dn / (3 * A) * 100).toFixed(1)}%</span></div>
     <p class="note">Every proton is two up quarks and one down; every neutron is one up and two down. These are the valence quarks, the ones that give a particle its identity. Each proton and neutron also holds a constantly churning sea of gluons and short-lived quark–antiquark pairs, which has no fixed count. The quarks’ own rest masses (up ≈ ${M_UP} MeV, down ≈ ${M_DOWN} MeV, Particle Data Group) add up to only about 1% of the atom’s mass. Nearly all the rest is the energy of the strong force holding them together.</p>`;
@@ -639,13 +736,14 @@ function renderOrigin(e) {
   const sty = k => `--oh:${PROC[k].h};--os:${PROC[k].s === '6%' ? '6%' : 'var(--tile-s)'}`;
   document.getElementById('origWhen').textContent = list.length > 1 && list[1][1] >= 0.3 ? `${PROC[top].name} + ${PROC[list[1][0]].name.toLowerCase()}` : PROC[top].name;
   const bar = PROC_ORDER.filter(k => o.f[k]).map(k => `<span style="${sty(k)};flex:${o.f[k]}" title="${PROC[k].name} ${Math.round(o.f[k] * 100)}%">${o.f[k] >= 0.12 ? Math.round(o.f[k] * 100) + '%' : ''}</span>`).join('');
-  const rows = list.map(([k, f]) => `<div class="r"><span class="dot" style="${sty(k)}"></span><b>${PROC[k].name}</b><em>${f === 1 ? 'all' : (f < 0.1 ? '~' : '≈ ') + Math.round(f * 100) + '%'}</em><small>${PROC[k].what}</small></div>`).join('');
+  const rows = list.map(([k, f]) => `<div class="r"><span class="dot" style="${sty(k)}"></span><b>${PROC[k].name}</b><em>${f === 1 ? 'all' : (f < 0.1 ? '~' : '≈ ') + Math.round(f * 100) + '%'}</em><small>${esc((o.w && o.w[k]) || PROC[k].what)}</small></div>`).join('');
   document.getElementById('origBody').innerHTML = `
+    <div class="provkey" style="margin:0">Share of the Solar System’s supply ${vt('est')}</div>
     <div class="obar" role="img" aria-label="Where ${esc(e.name)} was made: ${list.map(([k, f]) => `${PROC[k].name} ${Math.round(f * 100)}%`).join(', ')}">${bar}</div>
     <div class="olist">${rows}</div>
     ${o.earth ? `<div class="row"><b>On Earth</b><span>${esc(o.earth)}</span></div>` : ''}
     ${o.note ? `<div class="row fact"><b>Star stuff</b><span>${esc(o.note)}</span></div>` : ''}
-    <p class="note" style="margin:0">Shares are approximate and describe the Solar System’s supply. Categories follow Jennifer Johnson’s Origin of the Elements table (Ohio State) and NASA Goddard’s version of it; shares beyond iron use published slow- and rapid-neutron-capture splits.</p>`;
+    <p class="note" style="margin:0">Shares are estimates, typically uncertain by about ±10 percentage points (more for some heavy elements), and describe the Solar System’s supply. Categories follow Jennifer Johnson’s Origin of the Elements table (Ohio State) and NASA Goddard’s version of it; shares beyond iron use published slow- and rapid-neutron-capture splits.</p>`;
 }
 
 /* ---------- history panel ---------- */
@@ -1161,11 +1259,12 @@ function drawShells(now) {
   const counts = M.shells.map(s => M.occ.reduce((t, o, n) => t + (o.shell === s.i ? occArr[n] : 0), 0));
   M.shells.forEach(s => {
     if (Math.round(counts[s.i]) <= 0) return;
-    const a = K === 1 ? -0.62 : -1.15 + 2.1 * s.i / (K - 1), x = cx + Math.cos(a) * s.d * discD / 2, y = cy + Math.sin(a) * s.d * discD / 2;
+    const a = K === 1 ? -0.62 : -2.5 + 3.1 * s.i / (K - 1), x = cx + Math.cos(a) * s.d * discD / 2, y = cy + Math.sin(a) * s.d * discD / 2;
     label(`${s.letter} ${Math.round(counts[s.i])}`, x + 4 * dpr, y, 10.5 * dpr);
   });
   const caption = prog < 1 && active ? `filling ${active.n}${active.L}${sup(Math.round(cur.get(active)))} · ${Math.round(eNow)} of ${e.Z} electrons` : `${e.sym} · ${e.econf.replace(/([spdf])(\d+)/g, (m0, a, b) => a + sup(b))}`;
   label(caption, ax, top + 12 * dpr, 11 * dpr);
+  label('layers evenly spaced (schematic)', ax, top + discD - 2 * dpr, 10 * dpr, 'left', '#aab4c0');
   // ---- radial density chart: electrons per ln r, stacked by shell, log-r axis
   const gx = ax + 6 * dpr, gw = aw - 12 * dpr, gy1 = top + ah - 16 * dpr, gy0 = gy1 - chartH + 22 * dpr, gh = gy1 - gy0;
   shctx.strokeStyle = '#2a323c'; shctx.lineWidth = dpr; shctx.beginPath(); shctx.moveTo(gx, gy1 + 0.5); shctx.lineTo(gx + gw, gy1 + 0.5); shctx.stroke();
@@ -1189,7 +1288,7 @@ function drawShells(now) {
     shctx.fillStyle = '#3a4350'; shctx.fillRect(xs(k), gy1, dpr, 4 * dpr);
     label(`${Math.pow(10, dec) >= 1 ? Math.pow(10, dec) : Math.pow(10, dec).toFixed(-dec)} pm`, xs(k), gy1 + 13 * dpr, 9.5 * dpr, 'center', '#8a96a6');
   }
-  label('radial density · one hump per shell · area = electrons', gx, gy0 - 6 * dpr, 9.5 * dpr, 'left', '#8a96a6');
+  label('radial density · true distance, log scale', gx, gy0 - 6 * dpr, 10 * dpr, 'left', '#aab4c0');
   return prog < 1;
 }
 function shellLoop(now) {
@@ -1227,7 +1326,7 @@ function renderXInfo() {
   const nm = meas ? meas[0] : model, nu = 299792458 / (nm * 1e-9), slow = nu / 1.3;
   box.hidden = false;
   const ex = Math.floor(Math.log10(slow)), slowTxt = `${Math.round(slow / Math.pow(10, ex))} × 10${sup(ex)}`;
-  box.innerHTML = `<div><b>${x.from} → ${x.to}</b> <span class="sw" style="background:${nmToRGB(nm)}"></span>${meas ? `measured ${meas[0]} nm${meas[1] ? ` (${meas[1]})` : ''} · model ≈ ${Math.round(model)} nm` : `model ≈ ${Math.round(model)} nm`} · ${bandOf(nm)}</div>
+  box.innerHTML = `<div><b>${x.from} → ${x.to}</b> <span class="sw" style="background:${nmToRGB(nm)}"></span>${meas ? `measured ${meas[0]} nm${meas[1] ? ` (${meas[1]})` : ''} · model ≈ ${Math.round(model)} nm ${vt('calc')}` : `model ≈ ${Math.round(model)} nm ${vt('calc')}`} · ${bandOf(nm)}</div>
     <div>light at ${(nu / 1e15).toFixed(2)} PHz, shown about ${slowTxt} times slower · <span id="xPhase">${xPhaseName}</span></div>`;
 }
 const X_CYCLE = [[1.4, 'resting in the ground state'], [4.2, 'absorbing light — sloshing'], [1.6, 'excited, holding still'], [4.2, 'emitting light — sloshing'], [0.6, 'back in the ground state']];
@@ -1306,7 +1405,7 @@ function renderNucInfo(e) {
   }).join('');
   box.innerHTML = `
     <div class="ln"><b>${e.sym}-${A}</b> · <span class="pn" style="background:var(--p-col)"></span>${e.Z} protons · <span class="pn" style="background:var(--n-col)"></span>${N} neutrons · ${N}/${e.Z} = ${(N / e.Z).toFixed(2)} neutrons per proton${life ? ' · ' + esc(life) : ''}</div>
-    <div class="ln">radius ≈ ${Rfm.toFixed(1)} fm${ratio ? ` · about ${(+ratio.toPrecision(2)).toLocaleString('en-US')} times smaller than the whole atom` : ''}${be ? ` · binding energy ${be.toFixed(2)} MeV per nucleon` : ''}</div>
+    <div class="ln">radius ≈ ${Rfm.toFixed(1)} fm ${vt('est')}${ratio ? ` · about ${(+ratio.toPrecision(2)).toLocaleString('en-US')} times smaller than the whole atom` : ''}${be ? ` · binding energy ${be.toFixed(2)} MeV per nucleon ${vt('calc')}` : ''}</div>
     <div class="ln">Isotopes of ${esc(e.name)} by mass number — tap one; shaded = stable, lightly shaded = half-life over a year:</div>
     <div class="isostrip" role="group" aria-label="Isotopes">${strip}</div>`;
   box.querySelectorAll('.isostrip button').forEach(b => b.onclick = () => { quarkPick[e.Z] = +b.dataset.a; renderStats(e); dirty.nuc = true; applyMode(); });
@@ -1320,12 +1419,12 @@ const NUC_NOTE = 'Red spheres are protons, blue-grey spheres are neutrons, packe
 
 /* ---------- modes, chips, render loop ---------- */
 const NOTES = {
-  slice: 'Each square is a cut through the nucleus in the xz-plane, colored by how likely the electron is to be found there (black never, white most likely). The angular shape of a p, d or f orbital is the same in every atom; what the element changes is the radial part — how big the orbital is, where its dark nodal rings fall, and how deep it dips toward the nucleus. Radial functions come from a self-consistent density-functional calculation of each atom, so True size shows real proportions: inner shells shrink to specks as the nuclear charge grows. m and −m look the same, so only m ≥ 0 is shown. Tap a square to enlarge it.',
+  slice: 'Each square is a cut through the nucleus in the xz-plane, colored by how likely the electron is to be found there (black never, white most likely). The angular shape of a p, d or f orbital is the same in every atom; what the element changes is the radial part — how big the orbital is, where its dark nodal rings fall, and how deep it dips toward the nucleus. Radial functions come from a self-consistent density-functional calculation of each atom, so Compare actual sizes shows real proportions: inner shells shrink to specks as the nuclear charge grows. m and −m look the same, so only m ≥ 0 is shown. Tap a square to enlarge it.',
   orb: 'Each shape is the surface that holds 90% of an electron’s probability, built from the atom’s own radial wavefunction. Orange and violet are the two opposite signs of the wavefunction; inner lobes come from radial nodes. A subshell’s occupied orbitals are shown side by side (yellow labels are unpaired electrons); tap one to see it large with axes. Whole atom shows every shell as a nested layer, cut open, with shells evenly spaced; a partly filled subshell pushes its shell into real bulges (shown in one of several equivalent orientations). Drag to rotate.',
   elek: 'Elektronium, from the Karlsruhe Physics Course: all of the atom’s electrons drawn as one continuous fluid whose density is the quantum probability density. Colors follow a log scale, and distances are rescaled so the shells sit evenly spaced. Layers shows how much Elektronium sits at each distance, so the shells glow as separate layers. Partly filled subshells make real bulges. Drag to rotate.',
   shells: 'No dots: each shell is a layer of Elektronium, tinted from K (innermost) outward, with shells evenly spaced. The graph shows the radial density on a true, logarithmic distance scale — one hump per shell, and each hump’s area is its electron count. Replay pours the electrons in the order subshells fill (1s, 2s, 2p, 3s, 3p, 4s, 3d …); the shapes shown during filling use the finished atom’s orbitals.'
 };
-const TAGS = { slice: 'PROBABILITY DENSITY |ψ|² · xz-PLANE', orb: 'ORBITAL SHAPES · 3D', elek: 'ELEKTRONIUM', shells: 'SHELLS · ELEKTRONIUM LAYERS', nuc: 'NUCLEUS · PROTONS AND NEUTRONS' };
+const TAGS = { slice: 'BRIGHTNESS = PROBABILITY DENSITY · xz SLICE', orb: 'ORBITAL SHAPES · 90% SURFACES', elek: 'ELEKTRONIUM · SCHEMATIC SPACING', shells: 'SHELLS · SCHEMATIC SPACING', nuc: 'NUCLEUS · PROTONS AND NEUTRONS' };
 function chipBtn(box, txt, pressed, fn, title) { const b = document.createElement('button'); b.textContent = txt; b.setAttribute('aria-pressed', pressed); if (title) b.title = title; b.onclick = fn; box.appendChild(b); return b; }
 function renderOrbChips() {
   const box = document.getElementById('orbChips'); box.innerHTML = '';
@@ -1376,8 +1475,8 @@ function applyMode() {
   document.getElementById('elekChips').hidden = mode !== 'elek';
   document.getElementById('shellChips').hidden = mode !== 'shells';
   document.getElementById('nucChips').hidden = mode !== 'nuc';
-  document.getElementById('wellTag').textContent = TAGS[mode];
-  document.getElementById('wellNote').textContent = mode === 'nuc' ? NUC_NOTE : NOTES[mode];
+  document.getElementById('wellTag').textContent = mode === 'orb' && orbState.whole ? 'WHOLE ATOM · SHELLS EVENLY SPACED (SCHEMATIC)' : TAGS[mode];
+  document.getElementById('wellNote').textContent = (mode === 'nuc' ? NUC_NOTE : NOTES[mode]) + (pulseOn && mode !== 'nuc' && !reduce ? ' The Pulse glow is decorative: in a settled atom the electron density does not change over time. For real motion, try Excite in the Elektronium view.' : '');
   const e = byZ(current);
   if (mode === 'slice') { renderSliceChips(); buildSlices(); kickSlice(); }
   if (mode === 'orb' && haveGL) {
@@ -1421,7 +1520,14 @@ document.getElementById('modeOrb').onclick = () => { mode = 'orb'; applyMode(); 
 document.getElementById('modeElek').onclick = () => { mode = 'elek'; applyMode(); };
 document.getElementById('modeShells').onclick = () => { mode = 'shells'; dirty.shells = true; applyMode(); };
 document.getElementById('modeNuc').onclick = () => { mode = 'nuc'; applyMode(); };
-document.getElementById('pulseBtn').onclick = ev => { pulseOn = !pulseOn; frozen = (performance.now() - t0) / 1000; ev.currentTarget.setAttribute('aria-pressed', pulseOn); kickSlice(); if (mode === 'shells') kickShells(false); };
+function setExpanded(on) {
+  well.classList.toggle('big', on); document.getElementById('backdrop').hidden = !on;
+  const b = document.getElementById('expandBtn'); b.setAttribute('aria-pressed', on); b.textContent = on ? 'Close' : 'Expand';
+}
+document.getElementById('expandBtn').onclick = () => setExpanded(!well.classList.contains('big'));
+document.getElementById('backdrop').onclick = () => setExpanded(false);
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && well.classList.contains('big')) setExpanded(false); });
+document.getElementById('pulseBtn').onclick = ev => { pulseOn = !pulseOn; frozen = (performance.now() - t0) / 1000; ev.currentTarget.setAttribute('aria-pressed', pulseOn); applyMode(); kickSlice(); if (mode === 'shells') kickShells(false); };
 new ResizeObserver(() => { if (mode === 'shells') kickShells(false); }).observe(well);
 
 
@@ -1527,7 +1633,8 @@ function sliceArea() {
   const top = (document.getElementById('ovTop').offsetHeight + 16) * dpr;
   const chips = document.getElementById('sliceChips');
   const bot = (chips.hidden ? 12 : chips.offsetHeight + 18) * dpr;
-  return { x: 12 * dpr, y: top, w: W - 24 * dpr, h: H - top - bot, dpr, W, H };
+  const cap = sliceState.sel < 0 ? 18 * dpr : 0;
+  return { x: 12 * dpr, y: top, w: W - 24 * dpr, h: H - top - bot - cap, dpr, W, H, cap };
 }
 function drawSlices(time) {
   if (!sliceList.length) return;
@@ -1543,7 +1650,8 @@ function drawSlices(time) {
     paintSlice(s, time, pulse);
     sctx.drawImage(s.cv, x, y, size, size);
     sctx.strokeStyle = '#3a3f47'; sctx.lineWidth = dpr; sctx.strokeRect(x + .5, y + .5, size - 1, size - 1);
-    label(`(${en.n},${en.l},${en.m})`, x + size - 8 * dpr, y + size - 10 * dpr, 15 * dpr);
+    label(`${en.n}${ORB_NAMES[en.l][[0, 1, 3, 5][en.m]]} orbital`, x + size - 8 * dpr, y + size - 12 * dpr, 16 * dpr);
+    label(`n, l, m = ${en.n}, ${en.l}, ${en.m}`, x + size - 8 * dpr, y + size - 32 * dpr, 10.5 * dpr);
     label(`${sliceState.atlas ? 'H ' : byZ(current).sym + ' '}${en.n}${en.L}  m = ${en.m ? '±' + en.m : 0}`, x + 8 * dpr, y + 18 * dpr, 12 * dpr, 'left');
     label(`ε = ${fmt(en.E, 3)} eV   ⟨r⟩ = ${fmt(en.rbar * 52.918, 3)} pm`, x + 8 * dpr, y + 34 * dpr, 11 * dpr, 'left');
     // colour bar and scale
@@ -1567,11 +1675,13 @@ function drawSlices(time) {
     paintSlice(s, time, pulse);
     sctx.drawImage(s.cv, cx, cy, best, best);
     sctx.strokeStyle = '#3a3f47'; sctx.lineWidth = dpr; sctx.strokeRect(cx + .5, cy + .5, best - 1, best - 1);
-    if (best > 34 * dpr) label(`(${en.n},${en.l},${en.m})`, cx + best - 4 * dpr, cy + best - 5 * dpr, Math.max(8, Math.min(12, best / dpr / 7)) * dpr);
+    const fs = Math.max(8, Math.min(13, best / dpr / 6.5)) * dpr;
+    if (best > 30 * dpr) label(`${en.n}${ORB_NAMES[en.l][[0, 1, 3, 5][en.m]]}`, cx + best - 4 * dpr, cy + best - 5 * dpr, fs);
+    if (best > 80 * dpr) label(`(${en.n},${en.l},${en.m})`, cx + best - 4 * dpr, cy + best - 5 * dpr - fs * 1.15, fs * 0.72);
     if (best > 70 * dpr) label(`${fmt(en.rbar * 52.918, 2)} pm`, cx + 4 * dpr, cy + 12 * dpr, 9 * dpr, 'left');
     sliceRects.push({ x: cx, y: cy, w: best, h: best, i });
   });
-  if (shared) label(`every square ±${fmt(common * 52.918, 3)} pm · true relative size`, ox, Math.min(oy + gh + 13 * dpr, A.y + A.h + 10 * dpr), 10 * dpr, 'left');
+  label(shared ? `actual sizes · every square ±${fmt(common * 52.918, 3)} pm · bright = likely` : 'each shape enlarged to fit · bright = likely', A.x, A.y + A.h + 14 * dpr, 10.5 * dpr, 'left');
 }
 function sliceLoop(now) {
   sliceRAF = 0;
@@ -1593,7 +1703,7 @@ function renderSliceChips() {
   const add = (txt, pressed, fn, title) => { const b = document.createElement('button'); b.textContent = txt; b.setAttribute('aria-pressed', pressed); if (title) b.title = title; b.onclick = fn; box.appendChild(b); return b; };
   add('Grid', sliceState.sel < 0, () => { sliceState.sel = -1; renderSliceChips(); kickSlice(); });
   if (!sliceState.atlas) add(sliceState.outer ? 'Show all shells' : 'Outer shells only', false, () => { sliceState.outer = !sliceState.outer; sliceState.sel = -1; buildSlices(); renderSliceChips(); kickSlice(); }, 'Switch between every occupied subshell and only the outer ones');
-  if (!sliceState.atlas && sliceState.sel < 0) add(sliceState.shared ? 'Fit each' : 'True size', false, () => { sliceState.shared = !sliceState.shared; renderSliceChips(); kickSlice(); }, 'Draw every orbital on one shared scale, or fit each one to its square');
+  if (!sliceState.atlas && sliceState.sel < 0) add(sliceState.shared ? 'Enlarge each shape' : 'Compare actual sizes', false, () => { sliceState.shared = !sliceState.shared; renderSliceChips(); kickSlice(); }, 'Draw every orbital on one shared scale, or fit each one to its square');
   add('Hydrogen n ≤ 4', sliceState.atlas, () => { sliceState.atlas = !sliceState.atlas; sliceState.sel = -1; buildSlices(); renderSliceChips(); kickSlice(); }, 'The classic hydrogen atlas, n = 1 to 4');
   if (sliceState.sel >= 0) {
     const en = sliceList[sliceState.sel];
