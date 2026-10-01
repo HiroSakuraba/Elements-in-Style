@@ -194,6 +194,11 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 .nucinfo .ln { font: 13px/1.5 var(--f-body); color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .nucinfo .ln b { color: var(--ink); font-weight: 500; }
 .nucinfo .pn { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+.decaybtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.decaybtns button { font-size: 12.5px; padding: 5px 10px; }
+.decaybtns button span { color: var(--ink-3); font-size: 11.5px; }
+.decayres { border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; background: var(--bg-2); }
+.decayres .eq { font: 400 18px/1.3 var(--f-display); letter-spacing: .02em; }
 .isostrip { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 2px; }
 .isostrip button { flex: 0 0 auto; min-width: 30px; padding: 3px 4px; font: 10.5px/1.2 var(--f-data); border-radius: 4px; color: var(--ink-2); background: var(--bg-2); }
 .isostrip button.st { background: color-mix(in srgb, var(--accent) 22%, var(--bg-2)); color: var(--ink); }
@@ -1595,7 +1600,7 @@ function drawPhotons(now) {
 }
 
 /* ---------- Nucleus: protons and neutrons, packed at true relative size ---------- */
-let nucGroup = null, nucState = { cut: false };
+let nucGroup = null, nucState = { cut: false, slow: /slowmo/.test(location.hash) ? 8 : 1 };
 const M_H1 = 1.00782503207, M_N = 1.00866491588;
 let fccCache = null;
 function fccPoints() { // FCC lattice sites (touching unit spheres), nearest the centre first
@@ -1613,35 +1618,287 @@ function bindingPerNucleon(e, A) {
   const iso = e.isotopes.find(i => i[0] === A); if (!iso || !iso[1] || A === 1) return null;
   return (e.Z * M_H1 + (A - e.Z) * M_N - iso[1]) * 931.494 / A;
 }
-function buildNuc(e) {
-  if (nucGroup) { root.remove(nucGroup); nucGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
-  const A = isoA(e), Z = e.Z, pts = fccPoints().slice(0, A);
+const P_COL = new THREE.Color('#ef5a43'), N_COL = new THREE.Color('#9db4cc');
+const M_E = 0.000548579909, U_MEV = 931.494;
+function nucleonLayout(A, Z) {
+  const pts = fccPoints().slice(0, A), S = 0.95 / (0.5 * Math.cbrt(300 / 0.74)) * 0.92;
   const c = pts.reduce((s, p) => [s[0] + p.x / A, s[1] + p.y / A, s[2] + p.z / A], [0, 0, 0]);
-  const S = 0.95 / (0.5 * Math.cbrt(300 / 0.74)) * 0.92, rad = 0.5 * S * 0.97;
   // spread protons evenly through the nucleus (Bresenham over the shells), shuffled within each shell
-  const order = pts.map((p, i) => ({ p, i, key: Math.round(p.d * 3) + p.h * 0.999 })).sort((a, b) => a.key - b.key);
+  const order = pts.map((p, i) => ({ p, i, key: Math.round(p.d * 3) + p.h * 0.999 })).sort((x, y) => x.key - y.key);
   const isP = new Array(A).fill(false);
   order.forEach((o, n) => { if (Math.floor((n + 1) * Z / A) > Math.floor(n * Z / A)) isP[o.i] = true; });
+  return { S, rad: 0.5 * S * 0.97, items: pts.map((p, i) => ({ base: new THREE.Vector3((p.x - c[0]) * S, (p.y - c[1]) * S, (p.z - c[2]) * S), proton: isP[i], ph: p.h * 6.283, w: 2.6 + 2.2 * ((p.h * 7.31) % 1), dir: new THREE.Vector3(Math.sin(p.h * 40), Math.cos(p.h * 23), Math.sin(p.h * 17)).normalize() })) };
+}
+function sitesFor(n, S) { // packed positions for n nucleons, centred
+  const pts = fccPoints().slice(0, n), c = pts.reduce((s, p) => [s[0] + p.x / n, s[1] + p.y / n, s[2] + p.z / n], [0, 0, 0]);
+  return pts.map(p => new THREE.Vector3((p.x - c[0]) * S, (p.y - c[1]) * S, (p.z - c[2]) * S));
+}
+function buildNuc(e) {
+  if (nucGroup) { root.remove(nucGroup); nucGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
+  decay = null; photonCv.hidden = true;
+  const A = isoA(e), L = nucleonLayout(A, e.Z);
   nucGroup = new THREE.Group();
-  const geo = new THREE.SphereGeometry(rad, 22, 16);
-  const pc = getComputedStyle(document.documentElement), pcol = new THREE.Color('#ef5a43'), ncol = new THREE.Color('#9db4cc');
-  const mkMesh = (col, n) => { const m = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: 0.45, metalness: 0.05, emissive: col, emissiveIntensity: 0.08 }), Math.max(1, n)); m.count = n; return m; };
-  const items = pts.map((p, i) => ({ base: new THREE.Vector3((p.x - c[0]) * S, (p.y - c[1]) * S, (p.z - c[2]) * S), proton: isP[i], ph: p.h * 6.283, w: 2.6 + 2.2 * ((p.h * 7.31) % 1), dir: new THREE.Vector3(Math.sin(p.h * 40), Math.cos(p.h * 23), Math.sin(p.h * 17)).normalize() }));
-  const vis = items.filter(it => !nucState.cut || !(it.base.x < -1e-6 && it.base.z < -1e-6));
-  const prot = vis.filter(it => it.proton), neut = vis.filter(it => !it.proton);
-  const pm = mkMesh(pcol, prot.length), nm = mkMesh(ncol, neut.length);
-  nucGroup.add(pm, nm);
-  nucGroup.userData = { pm, nm, prot, neut, rad };
+  const geo = new THREE.SphereGeometry(L.rad, 22, 16);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.45, metalness: 0.05, emissive: 0x000000 });
+  const mesh = new THREE.InstancedMesh(geo, mat, A);
+  L.items.forEach((it, i) => { it.pos = it.base.clone(); it.col = (it.proton ? P_COL : N_COL).clone(); it.scale = 1; it.gone = false;
+    it.cut = nucState.cut && it.base.x < -1e-6 && it.base.z < -1e-6; mesh.setColorAt(i, it.col); });
+  mesh.instanceColor.needsUpdate = true;
+  const parts = new THREE.Group();
+  nucGroup.add(mesh, parts);
+  nucGroup.userData = { mesh, items: L.items, rad: L.rad, S: L.S, parts, glow: 0 };
   nucPose(0, 0);
   root.add(nucGroup);
   renderNucInfo(e);
 }
 function nucPose(time, amp) {
   if (!nucGroup) return;
-  const { pm, nm, prot, neut, rad } = nucGroup.userData, M = new THREE.Matrix4(), v = new THREE.Vector3();
-  [[pm, prot], [nm, neut]].forEach(([mesh, list]) => {
-    list.forEach((it, i) => { v.copy(it.dir).multiplyScalar(amp * rad * 0.16 * Math.sin(time * it.w + it.ph)).add(it.base); M.makeTranslation(v.x, v.y, v.z); mesh.setMatrixAt(i, M); });
-    mesh.instanceMatrix.needsUpdate = true;
+  const { mesh, items, rad, glow } = nucGroup.userData, M = new THREE.Matrix4(), v = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+  items.forEach((it, i) => {
+    v.copy(it.dir).multiplyScalar(amp * rad * 0.16 * Math.sin(time * it.w + it.ph)).add(it.pos);
+    const k = it.gone || it.cut ? 0 : it.scale; s.set(k, k, k); M.compose(v, q, s); mesh.setMatrixAt(i, M);
+    mesh.setColorAt(i, it.col);
+  });
+  mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
+  mesh.material.emissive.setRGB(glow * 0.9, glow * 0.85, glow);
+}
+
+/* ---------- radioactive decay: data, energy, and animation ---------- */
+// Corrections where the database's minor-branch intensities are unreliable.
+const DECAY_FIX = { '98-252': 'A 96.91%, SF 3.09%', '92-238': 'A 100%, SF (trace), 2B- (trace)', '19-40': 'B- 89.28%, EC 10.72%' };
+// Gamma rays that follow well-known decays (MeV), keyed by isotope and mode.
+const GAMMAS = { '27-60': { 'B-': [1.173, 1.332] }, '55-137': { 'B-': [0.662] }, '11-24': { 'B-': [1.369, 2.754] }, '53-131': { 'B-': [0.364] },
+  '19-40': { EC: [1.461] }, '95-241': { A: [0.0595] }, '88-226': { A: [0.186] }, '92-235': { A: [0.186] } };
+const MODE_NAME = { A: 'Alpha (α)', 'B-': 'Beta-minus (β⁻)', 'B+': 'Positron (β⁺)', EC: 'Electron capture', 'e+': 'Positron (β⁺)', SF: 'Spontaneous fission',
+  n: 'Neutron emission', '2n': 'Two-neutron emission', '3n': 'Three-neutron emission', '4n': 'Four-neutron emission', p: 'Proton emission', '2p': 'Two-proton emission', '3p': 'Three-proton emission',
+  'B-n': 'β⁻, then a neutron', 'B+p': 'β⁺, then a proton', 'B-A': 'β⁻, then alpha', 'B+A': 'β⁺, then alpha', 'B-p': 'β⁻, then a proton', '2B-': 'Double beta-minus', '2B+': 'Double positron',
+  'B-SF': 'β⁻, then fission', 'B+SF': 'β⁺, then fission', 'B-t': 'β⁻, then a triton', 'B-d': 'β⁻, then a deuteron', 'EC+B+': 'Positron (β⁺)' };
+function parseModes(e, A, iso) {
+  const raw = DECAY_FIX[`${e.Z}-${A}`] || iso[7] || '';
+  const out = [];
+  raw.split(', ').filter(Boolean).forEach((part, i) => {
+    const m = part.match(/^(\S+)\s*(.*)$/); let code = m[1], share = m[2] || '';
+    if (/^(2B[-+])$/.test(code) && i > 0) share = '(trace)';
+    if (code === 'EC+B+') code = 'B+';
+    const clu = code.match(/^(\d+)([A-Z][a-z]?)$/);
+    if (code === 'B+') { out.push({ code: 'B+', label: 'Positron (β⁺)', share, note: 'The data lists positron emission and electron capture together.' }); out.push({ code: 'EC', label: 'Electron capture', share: '', note: 'Shares the branch above.' }); return; }
+    if (clu) { out.push({ code, label: `Cluster: ${clu[1]}${clu[2]}`, share: share || '(trace)', cluster: { A: +clu[1], sym: clu[2] } }); return; }
+    if (MODE_NAME[code]) out.push({ code, label: MODE_NAME[code], share });
+  });
+  if (e.Z === 43 && A === 99) out.unshift({ code: 'IT', label: 'Gamma from Tc-99m', share: '', note: 'The medical isomer: half-life 6 hours, one 0.140 MeV gamma ray.' });
+  return out;
+}
+const SYM2Z = {}; EL.forEach(x => SYM2Z[x.sym] = x.Z);
+const isoMass = (Z, A) => { const x = byZ(Z); if (!x) return null; const i = x.isotopes.find(q => q[0] === A); return i && i[1] ? i[1] : null; };
+// Steps for each mode, and the bookkeeping for the equation and Q value
+function decayPlan(e, A, md) {
+  const steps = [], gam = (GAMMAS[`${e.Z}-${A}`] || {})[md.code === 'EC' && e.Z === 19 ? 'EC' : md.code];
+  let Zf = e.Z, Af = A; const out = { clusters: [], n: 0, p: 0, bplus: 0, bminus: 0, ec: 0 };
+  const B_MINUS = () => { steps.push({ k: 'bm' }); Zf++; out.bminus++; }, B_PLUS = () => { steps.push({ k: 'bp' }); Zf--; out.bplus++; };
+  const CL = (zc, ac, name) => { steps.push({ k: 'cl', zc, nc: ac - zc, name }); Zf -= zc; Af -= ac; out.clusters.push([zc, ac]); };
+  const EN = k => { steps.push({ k: 'en', count: k }); Af -= k; out.n += k; }, EP = k => { steps.push({ k: 'ep', count: k }); Zf -= k; Af -= k; out.p += k; };
+  switch (md.code) {
+    case 'A': CL(2, 4, 'alpha particle'); break;
+    case 'B-': B_MINUS(); break;
+    case '2B-': B_MINUS(); B_MINUS(); break;
+    case 'B+': case 'e+': B_PLUS(); break;
+    case '2B+': B_PLUS(); B_PLUS(); break;
+    case 'EC': steps.push({ k: 'ec' }); Zf--; out.ec++; break;
+    case 'SF': steps.push({ k: 'sf' }); Zf = null; break;
+    case 'n': case '2n': case '3n': case '4n': EN(parseInt(md.code) || 1); break;
+    case 'p': case '2p': case '3p': EP(parseInt(md.code) || 1); break;
+    case 'B-n': B_MINUS(); EN(1); break;
+    case 'B-p': B_MINUS(); EP(1); break;
+    case 'B+p': B_PLUS(); EP(1); break;
+    case 'B-A': B_MINUS(); CL(2, 4, 'alpha particle'); break;
+    case 'B+A': B_PLUS(); CL(2, 4, 'alpha particle'); break;
+    case 'B-t': B_MINUS(); CL(1, 3, 'triton'); break;
+    case 'B-d': B_MINUS(); CL(1, 2, 'deuteron'); break;
+    case 'B-SF': B_MINUS(); steps.push({ k: 'sf' }); Zf = null; break;
+    case 'B+SF': B_PLUS(); steps.push({ k: 'sf' }); Zf = null; break;
+    case 'IT': steps.push({ k: 'gm', mev: [0.1405] }); break;
+    default: if (md.cluster) { const zc = SYM2Z[md.cluster.sym]; CL(zc, md.cluster.A, `${md.cluster.sym}-${md.cluster.A} cluster`); }
+  }
+  if (gam) steps.push({ k: 'gm', mev: gam });
+  // Q value from atomic masses
+  let Q = null;
+  if (md.code === 'IT') Q = 0.1405;
+  else if (Zf != null) {
+    const Mp = isoMass(e.Z, A), Md = isoMass(Zf, Af);
+    let sum = 0, ok = Mp != null && Md != null;
+    out.clusters.forEach(([zc, ac]) => { const m = zc === 2 && ac === 4 ? 4.00260325413 : isoMass(zc, ac); if (m == null) ok = false; else sum += m; });
+    if (ok) Q = (Mp - Md - sum - out.n * M_N - out.p * M_H1 - out.bplus * 2 * M_E) * U_MEV;
+  }
+  return { steps, Zf, Af, out, Q };
+}
+function decayEquation(e, A, plan, md) {
+  const nuc = (Z, A2) => `${sup(A2)}${byZ(Z) ? byZ(Z).sym : '?'}`;
+  if (md.code === 'IT') return `${sup(99)}ᵐTc → ${sup(99)}Tc + γ`;
+  const lhs = nuc(e.Z, A) + (plan.out.ec ? ' + e⁻' : '');
+  if (plan.Zf == null) return `${lhs} → two lighter nuclei + 2–3 n  (for example ${sup(Math.round(A * 0.42))}${byZ(Math.round(e.Z * 0.42)).sym} + ${sup(A - Math.round(A * 0.42) - 3)}${byZ(e.Z - Math.round(e.Z * 0.42)).sym} + 3n)`;
+  const rhs = [nuc(plan.Zf, plan.Af)];
+  plan.out.clusters.forEach(([zc, ac]) => rhs.push(nuc(zc, ac)));
+  for (let i = 0; i < plan.out.bminus; i++) rhs.push('e⁻ + ν̄');
+  for (let i = 0; i < plan.out.bplus; i++) rhs.push('e⁺ + ν');
+  if (plan.out.ec) rhs.push('ν');
+  if (plan.out.n) rhs.push(plan.out.n > 1 ? `${plan.out.n} n` : 'n');
+  if (plan.out.p) rhs.push(plan.out.p > 1 ? `${plan.out.p} p` : 'p');
+  if (plan.steps.some(s => s.k === 'gm')) rhs.push('γ');
+  return `${lhs} → ${rhs.join(' + ')}`;
+}
+
+let decay = null; // the running animation
+const STEP_DUR = { cl: 2.6, bm: 2.6, bp: 2.6, ec: 3.0, en: 2.2, ep: 2.2, sf: 3.0, gm: 2.4 };
+const ease = v => { v = Math.max(0, Math.min(1, v)); return v < 0.5 ? 2 * v * v : 1 - Math.pow(-2 * v + 2, 2) / 2; };
+const easeIn = v => { v = Math.max(0, Math.min(1, v)); return v * v * v; };
+function particle(kind) {
+  const ud = nucGroup.userData, r = ud.rad;
+  const spec = { e: [0.42, 0x7fd6ff, 1], pos: [0.42, 0xff7ab6, 1], nu: [0.32, 0xffffff, 0.35], n: [1, 0x9db4cc, 1], p: [1, 0xef5a43, 1] }[kind];
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r * spec[0], 16, 12), new THREE.MeshStandardMaterial({ color: spec[1], emissive: spec[1], emissiveIntensity: kind === 'n' || kind === 'p' ? 0.05 : 0.6, transparent: spec[2] < 1, opacity: spec[2], depthWrite: spec[2] >= 1 }));
+  ud.parts.add(m);
+  const trail = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: spec[1], transparent: true, opacity: kind === 'nu' ? 0.25 : 0.55 }));
+  ud.parts.add(trail);
+  return { m, trail };
+}
+function flyTo(P, from, to, p) { P.m.position.lerpVectors(from, to, p); P.trail.geometry.setFromPoints([from, P.m.position.clone()]); P.m.visible = p > 0; P.trail.visible = p > 0 && p < 1.05; }
+function rot(v, axis, ang) { return v.clone().applyAxisAngle(axis, ang); }
+function pickSurface(items, pred, d, k) {
+  return items.filter(it => !it.gone && pred(it)).sort((x, y) => y.pos.dot(d) - x.pos.dot(d)).slice(0, k);
+}
+function relaxPlan(items, S) { // remaining nucleons glide to a freshly packed, smaller nucleus
+  const live = items.filter(it => !it.gone && !it.leaving), sites = sitesFor(live.length, S);
+  // shift the new packing toward where the nucleons already are, then give each its nearest free spot
+  const ctr = live.reduce((s, it) => s.add(it.pos), new THREE.Vector3()).multiplyScalar(1 / Math.max(1, live.length));
+  sites.forEach(s => s.add(ctr));
+  const used = new Array(sites.length).fill(false);
+  live.sort((x, y) => x.pos.clone().sub(ctr).length() - y.pos.clone().sub(ctr).length());
+  live.forEach(it => { let best = -1, bd = Infinity; sites.forEach((s, j) => { if (used[j]) return; const dd = s.distanceToSquared(it.pos); if (dd < bd) { bd = dd; best = j; } }); used[best] = true; it.from = it.pos.clone(); it.to = sites[best]; });
+  return live;
+}
+function startDecay(e, A, md) {
+  if (!nucGroup) return;
+  buildNuc(e); // fresh parent nucleus
+  const plan = decayPlan(e, A, md);
+  const qInv = root.quaternion.clone().invert();
+  const d = new THREE.Vector3(0.9, -0.12, 0.42).normalize().applyQuaternion(qInv);
+  const up = new THREE.Vector3(0, 0, 1).applyQuaternion(qInv);
+  autoSpin = false;
+  decay = { e, A, md, plan, si: 0, t0: performance.now(), d, up, labels: [], photons: [], done: false };
+  prepStep();
+  renderNucInfo(e);
+}
+function prepStep() {
+  const D = decay, st = D.plan.steps[D.si], ud = nucGroup.userData, items = ud.items, d = D.d;
+  st.t0 = performance.now(); st.dur = STEP_DUR[st.k] * 1000 * nucState.slow; D.labels = []; D.photons = [];
+  if (st.k === 'cl') {
+    const ps = pickSurface(items, it => it.proton, d, st.zc), ns = pickSurface(items, it => !it.proton, d, st.nc), group = [...ps, ...ns];
+    const ctr = group.reduce((s, it) => s.add(it.pos), new THREE.Vector3()).multiplyScalar(1 / group.length);
+    const sites = sitesFor(group.length, ud.S);
+    group.forEach((it, i) => { it.leaving = true; it.from = it.pos.clone(); it.clu = ctr.clone().add(d.clone().multiplyScalar(ud.rad * 1.2)).add(sites[i]); });
+    st.group = group; st.relax = relaxPlan(items, ud.S);
+  }
+  if (st.k === 'bm' || st.k === 'bp' || st.k === 'ec') {
+    const want = st.k === 'bm' ? (it => !it.proton) : (it => it.proton);
+    const [it] = pickSurface(items, want, rot(d, D.up, st.k === 'ec' ? -0.6 : 0.3), 1);
+    if (!it) { st.skip = true; return; }
+    st.it = it; st.c0 = it.col.clone(); st.c1 = (st.k === 'bm' ? P_COL : N_COL).clone();
+    const lep = particle(st.k === 'bm' ? 'e' : st.k === 'bp' ? 'pos' : 'e'), nu = particle('nu');
+    st.lep = lep; st.nu = nu; st.p0 = it.pos.clone();
+    st.lepDir = rot(d, D.up, 0.25); st.nuDir = rot(d, D.up, 2.4).add(new THREE.Vector3(0, 0.4, 0)).normalize();
+  }
+  if (st.k === 'en' || st.k === 'ep') {
+    const want = st.k === 'en' ? (it => !it.proton) : (it => it.proton);
+    st.group = pickSurface(items, want, d, st.count); st.group.forEach(it => { it.leaving = true; it.from = it.pos.clone(); });
+    st.dirs = st.group.map((it, i) => rot(d, D.up, (i - (st.count - 1) / 2) * 0.6));
+    st.relax = relaxPlan(items, ud.S);
+  }
+  if (st.k === 'sf') {
+    const live = items.filter(it => !it.gone), ctr = live.reduce((s, it) => s.add(it.pos), new THREE.Vector3()).multiplyScalar(1 / live.length);
+    const nfree = live.length > 230 ? 3 : 2, byNeck = live.filter(it => !it.proton).sort((x, y) => Math.abs(x.pos.clone().sub(ctr).dot(d)) - Math.abs(y.pos.clone().sub(ctr).dot(d)));
+    st.free = byNeck.slice(0, nfree); st.free.forEach((it, i) => { it.leaving = true; it.from = it.pos.clone(); it.fdir = rot(rot(d, D.up, 1.6 + i * 2.1), new THREE.Vector3(1, 0, 0), 0.7 * (i - 1)); });
+    st.frag = live.filter(it => !it.leaving).map(it => ({ it, s: Math.sign(it.pos.clone().sub(ctr).dot(d)) || 1, from: it.pos.clone() }));
+  }
+}
+function decayTick(now) {
+  const D = decay; if (!D || D.done) return;
+  const st = D.plan.steps[D.si], p = Math.min(1, (now - st.t0) / st.dur), ud = nucGroup.userData, d = D.d, R0 = ud.rad;
+  D.labels = []; D.photons = [];
+  const lab = (pos, txt) => D.labels.push([pos.clone(), txt]);
+  ud.glow = 0;
+  if (st.skip) { st.t0 -= st.dur; }
+  if (st.k === 'cl') {
+    st.group.forEach(it => {
+      if (p < 0.25) it.pos.lerpVectors(it.from, it.clu, ease(p / 0.25));
+      else it.pos.copy(it.clu).add(d.clone().multiplyScalar(2.8 * easeIn((p - 0.25) / 0.75)));
+    });
+    st.relax.forEach(it => it.pos.lerpVectors(it.from, it.to, ease((p - 0.3) / 0.55)));
+    if (p > 0.2 && p < 0.92) lab(st.group[0].pos, st.name === 'alpha particle' ? 'alpha particle: 2 protons + 2 neutrons' : st.name);
+  }
+  if (!st.skip && (st.k === 'bm' || st.k === 'bp' || st.k === 'ec')) {
+    const it = st.it, flip = st.k === 'ec' ? ease((p - 0.32) / 0.14) : ease((p - 0.15) / 0.2);
+    it.col.copy(st.c0).lerp(st.c1, flip); it.scale = 1 + 0.45 * Math.sin(Math.PI * Math.max(0, Math.min(1, st.k === 'ec' ? (p - 0.3) / 0.2 : (p - 0.12) / 0.26)));
+    if (st.k === 'ec') {
+      flyTo(st.lep, st.p0.clone().add(st.lepDir.clone().multiplyScalar(2.6)), st.p0, ease(p / 0.3)); if (p > 0.31) { st.lep.m.visible = false; st.lep.trail.visible = false; }
+      flyTo(st.nu, st.p0, st.p0.clone().add(st.nuDir.clone().multiplyScalar(3)), easeIn((p - 0.42) / 0.5));
+      if (p < 0.3) lab(st.lep.m.position, 'inner electron, pulled in'); else if (p < 0.55) lab(it.pos, 'proton + electron → neutron'); else if (p < 0.95) lab(st.nu.m.position, 'neutrino (passes through almost anything)');
+      if (p > 0.45) D.photons = [{ kind: 'xray', p: (p - 0.45) / 0.55, label: 'X-ray: the electron cloud refills the gap' }];
+    } else {
+      flyTo(st.lep, st.p0, st.p0.clone().add(st.lepDir.clone().multiplyScalar(3)), easeIn((p - 0.3) / 0.6));
+      flyTo(st.nu, st.p0, st.p0.clone().add(st.nuDir.clone().multiplyScalar(3)), easeIn((p - 0.33) / 0.62));
+      if (p > 0.1 && p < 0.42) lab(it.pos, st.k === 'bm' ? 'a down quark turns up: neutron → proton' : 'an up quark turns down: proton → neutron');
+      if (p > 0.42 && p < 0.92) { lab(st.lep.m.position, st.k === 'bm' ? 'electron (beta particle)' : 'positron (anti-electron)'); lab(st.nu.m.position, st.k === 'bm' ? 'antineutrino' : 'neutrino'); }
+    }
+  }
+  if (st.k === 'en' || st.k === 'ep') {
+    st.group.forEach((it, i) => it.pos.copy(it.from).add(st.dirs[i].clone().multiplyScalar(3 * easeIn((p - 0.1) / 0.7))));
+    st.relax.forEach(it => it.pos.lerpVectors(it.from, it.to, ease((p - 0.25) / 0.55)));
+    if (p > 0.15 && p < 0.85) lab(st.group[0].pos, st.k === 'en' ? 'neutron leaves' : 'proton leaves');
+  }
+  if (st.k === 'sf') {
+    const stretch = ease(p / 0.3) * R0 * 3, fly = ease((p - 0.3) / 0.7) * 0.75;
+    st.frag.forEach(f => f.it.pos.copy(f.from).add(d.clone().multiplyScalar(f.s * (stretch + fly))));
+    st.free.forEach(it => it.pos.copy(it.from).add(it.fdir.clone().multiplyScalar(3 * easeIn((p - 0.28) / 0.6))));
+    if (p > 0.35 && p < 0.9) { lab(st.free[0].pos, 'free neutrons'); lab(st.frag.find(f => f.s > 0).it.pos, 'fragment'); lab(st.frag.find(f => f.s < 0).it.pos, 'fragment'); }
+    if (p < 0.3) lab(new THREE.Vector3(0, R0 * 8, 0), 'the nucleus stretches, then snaps apart');
+  }
+  if (st.k === 'gm') {
+    ud.glow = 0.55 * Math.max(0, 1 - Math.abs(p - 0.15) / 0.15) + 0.25 * Math.max(0, 1 - p / 0.5);
+    D.photons = st.mev.map((mev, i) => ({ kind: 'gamma', p: (p - 0.2 - i * 0.18) / 0.6, ang: -0.5 - i * 0.9, label: `gamma ray: ${mev} MeV` }));
+  }
+  if (p >= 1) {
+    if (st.group) st.group.forEach(it => { it.gone = true; it.leaving = false; });
+    if (st.free) st.free.forEach(it => { it.gone = true; it.leaving = false; });
+    if (st.lep) { [st.lep, st.nu].forEach(P => { P.m.visible = false; P.trail.visible = false; }); st.it.scale = 1; }
+    if (st.skip && st.it === undefined && (st.k === 'bm' || st.k === 'bp' || st.k === 'ec')) {}
+    D.si++;
+    if (D.si >= D.plan.steps.length) { D.done = true; D.labels = []; D.photons = []; autoSpin = !reduce; renderNucInfo(D.e); }
+    else prepStep();
+  }
+}
+function drawDecayOverlay() {
+  const D = decay, show = mode === 'nuc' && D && !D.done;
+  if (mode === 'nuc') photonCv.hidden = !show;
+  if (!show) return;
+  const rect = well.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2), W = Math.round(rect.width * dpr), H = Math.round(rect.height * dpr);
+  if (photonCv.width !== W || photonCv.height !== H) { photonCv.width = W; photonCv.height = H; }
+  const c = pctx; c.clearRect(0, 0, W, H);
+  const say = (txt, tx, ty, align = 'left') => { c.font = `500 ${11 * dpr}px "IBM Plex Sans", system-ui, sans-serif`; c.textAlign = align; c.lineWidth = 3 * dpr; c.strokeStyle = 'rgba(5,7,10,.85)'; c.strokeText(txt, tx, ty); c.fillStyle = '#eef4fa'; c.fillText(txt, tx, ty); };
+  const scr = v => { const w = v.clone(); nucGroup.localToWorld(w); w.project(camera); return [(w.x * 0.5 + 0.5) * W, (-w.y * 0.5 + 0.5) * H]; };
+  D.labels.forEach(([pos, txt]) => {
+    const [x, y] = scr(pos); if (x < -40 || x > W + 40 || y < 0 || y > H) return;
+    c.font = `500 ${11 * dpr}px "IBM Plex Sans", system-ui, sans-serif`; const w = c.measureText(txt).width;
+    const lx = Math.min(W - 8 * dpr - w / 2, Math.max(8 * dpr + w / 2, x));
+    say(txt, lx, Math.max(16 * dpr, y - 18 * dpr), 'center');
+  });
+  const [cx, cy] = scr(new THREE.Vector3());
+  D.photons.forEach(ph => {
+    if (ph.p <= 0 || ph.p >= 1) return;
+    const ang = ph.ang ?? -2.4, rr = 18 * dpr + ph.p * Math.hypot(W, H) * 0.55, lam = (ph.kind === 'gamma' ? 6 : 11) * dpr, col = ph.kind === 'gamma' ? '#f3eeff' : '#b9a6ff';
+    const ux = Math.cos(ang), uy = Math.sin(ang), nx = -uy, ny = ux, len = lam * 6;
+    c.save(); c.strokeStyle = col; c.lineWidth = 2 * dpr; c.shadowColor = col; c.shadowBlur = 8 * dpr; c.beginPath();
+    for (let s = -len; s <= len; s += dpr) { const env = Math.exp(-0.5 * Math.pow(s / (len * 0.45), 2)), off = 7 * dpr * env * Math.sin(2 * Math.PI * s / lam), px = cx + ux * (rr + s) + nx * off, py = cy + uy * (rr + s) + ny * off; s === -len ? c.moveTo(px, py) : c.lineTo(px, py); }
+    c.stroke(); c.restore();
+    say(ph.label, cx + ux * rr + (ux < 0 ? -10 : 10) * dpr, cy + uy * rr - 12 * dpr, ux < 0 ? 'right' : 'left');
   });
 }
 function renderNucInfo(e) {
@@ -1655,19 +1912,41 @@ function renderNucInfo(e) {
     const cls = i[3] === 'stable' ? 'st' : (i[4] != null && i[4] >= 3.15e7 ? 'll' : '');
     return `<button class="${cls}" data-a="${i[0]}" aria-pressed="${i[0] === A}" title="${e.sym}-${i[0]}: ${i[0] - e.Z} neutrons, ${i[3] || 'half-life unknown'}">${i[0]}</button>`;
   }).join('');
+  const modes = iso && iso[3] !== 'stable' ? parseModes(e, A, iso) : [];
+  let decayHTML = '';
+  if (iso && iso[3] === 'stable') decayHTML = `<div class="ln"><b>Stable.</b> This nucleus has never been seen to decay. Tap an unshaded number in the isotope strip below to watch one that does.</div>`;
+  else if (modes.length) {
+    decayHTML = `<div class="ln"><b>Watch it decay</b> · any one nucleus decays at a random moment${iso[3] ? ` (half-life ${esc(iso[3])})` : ''}; here it happens now:</div>
+      <div class="decaybtns">${modes.map((m, i) => `<button data-mode="${i}" title="${esc(m.note || '')}">${esc(m.label)}${m.share ? ` <span>${esc(m.share)}</span>` : ''}</button>`).join('')}</div>`;
+    if (decay && decay.e === e && decay.A === A) {
+      const P = decay.plan, Q = P.Q, eq = decayEquation(e, A, P, decay.md);
+      const qTxt = decay.md.code === 'SF' || P.Zf == null ? `Energy released: about 200 MeV ${vt('est')}, mostly as the fragments’ motion.` : Q == null ? 'Energy released: masses not available for this decay.'
+        : Q <= 0 ? `Q = ${Q.toFixed(3)} MeV ${vt('calc')}: by these masses this branch cannot happen on its own.`
+        : `Energy released: Q = ${Q < 1 ? Q.toFixed(3) : Q.toFixed(2)} MeV ${vt('calc')}, roughly ${(+(Q * 1e6 / 5).toPrecision(1)).toLocaleString('en-US')} times the energy of a chemical bond.`;
+      const dz = P.Zf, dEl = dz ? byZ(dz) : null, dIso = dEl ? dEl.isotopes.find(q => q[0] === P.Af) : null;
+      decayHTML += `<div class="decayres"><div class="eq">${eq}</div><div class="ln">${qTxt}</div>
+        ${dEl && decay.done ? `<div class="ln">Left behind: <b>${dEl.name}-${P.Af}</b>${dIso ? (dIso[3] === 'stable' ? ', which is stable.' : `, half-life ${esc(dIso[3] || 'unknown')}.`) : '.'}</div>` : ''}
+        <div class="decaybtns">${decay.done ? `<button id="decReplay">Replay</button>` : ''}${dEl && decay.done && dz !== e.Z ? `<button id="decNext">Go to ${dEl.sym}-${P.Af} →</button>` : ''}</div></div>`;
+    }
+  } else if (iso) decayHTML = `<div class="ln">No decay data listed for this isotope.</div>`;
   box.innerHTML = `
     <div class="ln"><b>${e.sym}-${A}</b> · <span class="pn" style="background:var(--p-col)"></span>${e.Z} protons · <span class="pn" style="background:var(--n-col)"></span>${N} neutrons · ${N}/${e.Z} = ${(N / e.Z).toFixed(2)} neutrons per proton${life ? ' · ' + esc(life) : ''}</div>
     <div class="ln">radius ≈ ${Rfm.toFixed(1)} fm ${vt('est')}${ratio ? ` · about ${(+ratio.toPrecision(2)).toLocaleString('en-US')} times smaller than the whole atom` : ''}${be ? ` · binding energy ${be.toFixed(2)} MeV per nucleon ${vt('calc')}` : ''}</div>
+    ${decayHTML}
     <div class="ln">Isotopes of ${esc(e.name)} by mass number — tap one; shaded = stable, lightly shaded = half-life over a year:</div>
     <div class="isostrip" role="group" aria-label="Isotopes">${strip}</div>`;
   box.querySelectorAll('.isostrip button').forEach(b => b.onclick = () => { quarkPick[e.Z] = +b.dataset.a; renderStats(e); dirty.nuc = true; applyMode(); });
-  const cur = box.querySelector('.isostrip button[aria-pressed="true"]'); if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+  box.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => startDecay(e, A, modes[+b.dataset.mode]));
+  const rp = document.getElementById('decReplay'); if (rp) rp.onclick = () => startDecay(e, A, decay.md);
+  const nx = document.getElementById('decNext'); if (nx) nx.onclick = () => { const P = decay.plan; quarkPick[P.Zf] = P.Af; select(P.Zf, true); };
+  const cur = box.querySelector('.isostrip button[aria-pressed="true"]'); if (cur) cur.parentElement.scrollLeft = cur.offsetLeft - cur.parentElement.clientWidth / 2;
 }
 function renderNucChips() {
   const box = document.getElementById('nucChips'); box.innerHTML = '';
   chipBtn(box, 'Cut open', nucState.cut, () => { nucState.cut = !nucState.cut; dirty.nuc = true; applyMode(); }, 'Remove a wedge to see protons and neutrons inside');
+  chipBtn(box, 'Slow motion', nucState.slow > 1, () => { nucState.slow = nucState.slow > 1 ? 1 : 3; renderNucChips(); }, 'Play decays three times slower');
 }
-const NUC_NOTE = 'Red spheres are protons, blue-grey spheres are neutrons, packed as tightly as they really are (nuclei are about as dense as close-packed balls). Size is to scale between elements: radius grows as the cube root of the mass number, from one lone proton in hydrogen to about 300 nucleons in the heaviest. The gentle jiggle stands in for the nucleons’ constant quantum motion; real nucleons have no fixed positions. Light nuclei have about one neutron per proton; heavy ones need half as many again, because extra neutrons add strong-force glue without adding electric repulsion.';
+const NUC_NOTE = 'For a radioactive isotope, the decay buttons below play out what happens: in alpha decay a clump of 2 protons and 2 neutrons escapes; in beta decay a neutron turns into a proton (or the reverse) as one of its quarks changes, throwing out an electron (or positron) and a nearly undetectable neutrino; in electron capture the nucleus swallows an inner electron and the cloud refills the gap with an X-ray; in fission the nucleus splits. The energy is calculated from measured masses. Red spheres are protons, blue-grey spheres are neutrons, packed as tightly as they really are (nuclei are about as dense as close-packed balls). Size is to scale between elements: radius grows as the cube root of the mass number, from one lone proton in hydrogen to about 300 nucleons in the heaviest. The gentle jiggle stands in for the nucleons’ constant quantum motion; real nucleons have no fixed positions. Light nuclei have about one neutron per proton; heavy ones need half as many again, because extra neutrons add strong-force glue without adding electric repulsion.';
 
 /* ---------- modes, chips, render loop ---------- */
 const NOTES = {
@@ -1749,7 +2028,7 @@ function applyMode() {
   }
   if (mode === 'elek' && haveGL) { if (dirty.elek) { buildElek(e); dirty.elek = false; } renderElekChips(); if (elekState.excite) { document.getElementById('wellNote').textContent = X_NOTE; document.getElementById('wellTag').textContent = 'ELEKTRONIUM · ONE ELECTRON, EXCITED'; } }
   renderXInfo();
-  if (mode !== 'elek' || !elekState.excite) photonCv.hidden = true;
+  if ((mode !== 'elek' || !elekState.excite) && !(mode === 'nuc' && decay && !decay.done)) photonCv.hidden = true;
   if (orbGroup) orbGroup.visible = mode === 'orb' && !orbState.whole;
   if (galleryGroup) galleryGroup.visible = mode === 'orb' && !orbState.whole;
   if (mode !== 'orb' || orbState.whole) document.getElementById('planeBox').hidden = true;
@@ -1775,13 +2054,14 @@ function loop(now) {
       root.updateMatrixWorld(); u.uCam.value.copy(elekMesh.worldToLocal(camera.position.clone()));
       if (elekState.excite) xUpdate(now);
     }
-    if (mode === 'nuc') nucPose(time, pz);
+    if (mode === 'nuc') { decayTick(now); nucPose(time, pz); }
     if (mode === 'orb' && planeState.on && planeMesh) {
       if (planeState.sweep && !reduce) { planeState.off = 0.85 * Math.sin(t * 0.55); positionPlane(); const r = document.getElementById('planeOff'); if (r) r.value = Math.round(planeState.off / 0.95 * 100); }
       if (planeState.sweep && now - lastPlane > 60) { drawPlane(); lastPlane = now; }
     }
     renderer.render(scene, camera);
     if (mode === 'elek') drawPhotons(now);
+    if (mode === 'nuc') drawDecayOverlay();
   }
   requestAnimationFrame(loop);
 }
