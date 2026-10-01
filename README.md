@@ -47,7 +47,9 @@ A second page, `reactions.html` (linked from the menu at the top of every page),
 - **H + H₂ → H₂ + H**, the simplest reaction there is: a hydrogen atom swaps partners with a hydrogen molecule. The barrier is symmetric and the products are the same kind of thing as the reactants.
 - **F + H₂ → HF + H**, where fluorine strips a hydrogen off the molecule. The barrier is tiny and early, and about 1.4 eV is released, mostly as vibration of the new HF (the basis of the HF chemical laser).
 
-Each reaction has:
+- **3 ⁴He → ¹²C through the Hoyle state** (under *Nuclear*), the way stars make carbon. Two helium nuclei form beryllium-8, which almost always falls apart. Rarely a third arrives in time and lands on the Hoyle state at 7.654 MeV, and about 4 in 10,000 of those settle into carbon by giving off two gamma rays. It comes with a carbon-12 energy-level diagram, a star-temperature slider (using the standard narrow-resonance rate, ∝ T⁻³ e^(−4.40/T₉)), and a "try the odds" counter. The energies and odds are measured values. The pictures of the nuclei are sketches, with the Hoyle state drawn as the loose "bent arm" from lattice calculations (Epelbaum et al., 2011–2012). Carbon's origin card on the Elements page links here.
+
+Each chemical reaction has:
 
 - **2D slice** of the electron density through the three atoms, with the unpaired electron shown in green and a faint opposite spin in pink.
 - **Elektronium**: the same density as a glowing 3D cloud you can turn.

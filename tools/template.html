@@ -42,6 +42,7 @@ body { font: 15px/1.5 var(--f-body); margin: 0; padding-inline: 16px; padding-bl
 .sitenav { display: flex; gap: 4px; margin: 0 0 12px; font: 500 12px var(--f-data); letter-spacing: .1em; text-transform: uppercase; }
 .sitenav a { color: var(--ink-2); text-decoration: none; padding: 6px 12px; border-radius: 999px; border: 1px solid transparent; }
 .sitenav a:hover { border-color: var(--rule); color: var(--ink); }
+#origBody a { color: var(--accent); text-underline-offset: 2px; white-space: nowrap; }
 .sitenav a[aria-current="page"] { color: var(--accent); border-color: var(--accent); }
 header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--rule); padding-bottom: 14px; }
 h1 { font: 400 clamp(26px, 3.4vw, 40px)/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; margin: 0; text-wrap: balance; }
@@ -871,6 +872,7 @@ function renderOrigin(e) {
     <div class="olist">${rows}</div>
     ${o.earth ? `<div class="row"><b>On Earth</b><span>${esc(o.earth)}</span></div>` : ''}
     ${o.note ? `<div class="row fact"><b>Star stuff</b><span>${esc(o.note)}</span></div>` : ''}
+    ${e.Z === 6 ? `<div class="row fact"><b>The Hoyle state</b><span>Stars can only make carbon because carbon-12 has an energy level in exactly the right place, predicted by Fred Hoyle in 1953. <a href="reactions.html#hoyle">Watch three helium nuclei become carbon →</a></span></div>` : ''}
     <p class="note" style="margin:0">Shares are estimates, typically uncertain by about ±10 percentage points (more for some heavy elements), and describe the Solar System’s supply. Categories follow Jennifer Johnson’s Origin of the Elements table (Ohio State) and NASA Goddard’s version of it; shares beyond iron use published slow- and rapid-neutron-capture splits.</p>`;
 }
 

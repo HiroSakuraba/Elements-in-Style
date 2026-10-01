@@ -33,7 +33,7 @@ def h3():
     bar = ts['dE']
     frames = [{'x': f['s'], 'dE': f['dE'], 'r1': f['r1'], 'r2': f['r2'], 'bo1': f['bo1'], 'bo2': f['bo2']} for f in fr]
     return {
-        'name': 'H + H₂',
+        'name': 'H + H₂', 'id': 'h-h2', 'group': 'Chemical',
         'equationHTML': 'H<sub>a</sub>–H<sub>b</sub> + H<sub>c</sub> → H<sub>a</sub> + H<sub>b</sub>–H<sub>c</sub>',
         'summary': 'The simplest chemical reaction there is: a hydrogen atom swaps partners with a hydrogen molecule. Three protons and three electrons, so it can be computed almost exactly.',
         'grid': pack(npz), 'frames': frames,
@@ -80,7 +80,7 @@ def fh2():
     x_hand = next(f['s'] for f in fr if f['bo1'] > f['bo2'])          # first frame where the new bond is the stronger one
     x_out = next(f['s'] for f in fr if f['dE'] < 0.75 * dEr)           # most of the energy already released
     return {
-        'name': 'F + H₂',
+        'name': 'F + H₂', 'id': 'f-h2', 'group': 'Chemical',
         'equationHTML': 'F + H<sub>a</sub>–H<sub>b</sub> → F–H<sub>a</sub> + H<sub>b</sub>',
         'summary': 'Fluorine, the most reactive element, strips a hydrogen atom off a hydrogen molecule. A tiny barrier and a big payoff: the new H–F bond is far stronger than the H–H bond it replaces.',
         'grid': pack(npz, cap=2.0), 'frames': frames,
@@ -117,7 +117,63 @@ def fh2():
     }
 
 
-rx = {'reactions': [h3()] + ([fh2()] if os.path.exists('fh2_path.json') else [])}
+def hoyle():
+    """Triple-alpha process through the Hoyle state. Nothing is computed here: energies, lifetimes and
+    branching are measured values (ENSDF / TUNL evaluations); the animation timeline is a sketch."""
+    keys = [(0, 7.275), (0.08, 7.275), (0.10, 7.367), (0.16, 7.367), (0.20, 7.275), (0.27, 7.275), (0.30, 7.367), (0.34, 7.367),
+            (0.42, 7.654), (0.59, 7.654), (0.61, 4.439), (0.78, 4.439), (0.80, 0.0), (1.0, 0.0)]
+    xs = np.linspace(0, 1, 201)
+    frames = [{'x': round(float(x), 4), 'dE': round(float(np.interp(x, *zip(*keys))), 4)} for x in xs]
+    he = '2 protons + 2 neutrons'
+    return {
+        'name': '3 ⁴He → ¹²C', 'id': 'hoyle', 'group': 'Nuclear', 'kind': 'nuclear', 'dur': 22,
+        'equationHTML': '3 <sup>4</sup>He → <sup>12</sup>C* → <sup>12</sup>C + 2<span style="font-family:var(--f-body)">γ</span>',
+        'summary': 'How stars make carbon: three helium nuclei fuse in a red giant\'s core. It only works because carbon-12 has an energy level, the Hoyle state, in just the right place.',
+        'frames': frames, 'phases': [
+            {'from': 0, 'jump': 0.05, 'title': 'Two helium nuclei meet',
+             'text': 'Deep in a red giant, at about 100 million kelvin, helium nuclei (two protons and two neutrons each, also called alpha particles) slam into each other all the time. Two of them can stick together as beryllium-8.'},
+            {'from': 0.15, 'jump': 0.19, 'title': 'Beryllium-8 falls apart',
+             'text': 'Beryllium-8 is slightly heavier than two helium nuclei, by 92 keV, so it splits again in about 10<sup>−16</sup> s. Because pairs keep forming and splitting, there is always a tiny amount around: roughly one beryllium-8 for every billion helium nuclei.'},
+            {'from': 0.3, 'jump': 0.36, 'title': 'A third one arrives in time',
+             'text': 'Once in a while a third helium nucleus hits a beryllium-8 before it breaks. Together they carry 7.367 MeV more energy than ordinary carbon-12. That is 287 keV short of the Hoyle state, so it takes a fast collision from the star\'s heat to land right on it. When it does, the three lock into resonance, and the reaction runs vastly faster than it would without that energy level.'},
+            {'from': 0.42, 'jump': 0.5, 'title': 'The Hoyle state',
+             'text': 'An excited carbon-12: three helium clusters held loosely together, more like a bent chain than a tight triangle. It is fragile. About 9,996 times in 10,000 it simply falls back into three helium nuclei (the faint outlines).'},
+            {'from': 0.58, 'jump': 0.62, 'title': 'Two gamma rays',
+             'text': 'The rare exception: it sheds 3.21 MeV as a gamma ray and drops to a compact, spinning carbon-12 (the 2⁺ state, 4.44 MeV). Then a second gamma ray of 4.44 MeV carries off the spin and the rest of the energy.'},
+            {'from': 0.8, 'jump': 0.9, 'title': 'Carbon-12',
+             'text': 'Ordinary, stable carbon-12. Most of the carbon in the universe, including the carbon in you, was made this way. A second piece of luck helps it survive: oxygen-16 has an energy level just below the carbon-12 + helium-4 energy (7.12 against 7.16 MeV), so carbon is not quickly burned on into oxygen.'},
+        ],
+        'states': [
+            {'from': 0, 'name': 'Helium-4 nuclei', 'rows': [['Energy above carbon-12', '7.275 MeV (three together)'], ['Each is made of', he], ['Lifetime', 'stable']]},
+            {'from': 0.09, 'name': 'Beryllium-8', 'rows': [['Energy above carbon-12', '7.367 MeV (with one ⁴He)'], ['Made of', '4 protons + 4 neutrons'], ['Lifetime', '≈ 10⁻¹⁶ s']]},
+            {'from': 0.17, 'name': 'Helium-4 nuclei', 'rows': [['Energy above carbon-12', '7.275 MeV (three together)'], ['Each is made of', he], ['Lifetime', 'stable']]},
+            {'from': 0.285, 'name': 'Beryllium-8', 'rows': [['Energy above carbon-12', '7.367 MeV (with one ⁴He)'], ['Made of', '4 protons + 4 neutrons'], ['Lifetime', '≈ 10⁻¹⁶ s']]},
+            {'from': 0.4, 'name': 'Carbon-12, Hoyle state', 'rows': [['Energy above carbon-12', '7.654 MeV'], ['Spin and parity', '0⁺'], ['Lifetime', '≈ 7 × 10⁻¹⁷ s'], ['Becomes stable carbon', 'about 4 in 10,000']]},
+            {'from': 0.6, 'name': 'Carbon-12, first excited state', 'rows': [['Energy above carbon-12', '4.439 MeV'], ['Spin and parity', '2⁺ (spinning)'], ['Lifetime', '≈ 6 × 10⁻¹⁴ s']]},
+            {'from': 0.79, 'name': 'Carbon-12', 'rows': [['Energy', '0 (ground state)'], ['Spin and parity', '0⁺'], ['Made of', '6 protons + 6 neutrons'], ['Lifetime', 'stable']]},
+        ],
+        'numbers': [
+            ['Hoyle state energy', '7.654 MeV'],
+            ['Hoyle\'s 1953 prediction', '7.68 MeV'],
+            ['Above three ⁴He', '379 keV'],
+            ['Above ⁸Be + ⁴He', '287 keV'],
+            ['⁸Be above two ⁴He', '92 keV'],
+            ['Chance it becomes carbon', '≈ 4 in 10,000'],
+            ['Gamma rays given off', '3.21 + 4.44 MeV'],
+            ['Typical red-giant core', '≈ 100 million K'],
+        ],
+        'method': ('<b>What is measured and what is sketched.</b> Every energy, lifetime and probability here is a measured value from the nuclear-data evaluations '
+                   '(the chance of becoming carbon, about 4 in 10,000, is still being refined; one 2020 experiment found about 6). The temperature panel uses the '
+                   'standard narrow-resonance rate, which scales as T<sup>−3</sup> e<sup>−4.40/T₉</sup> (T₉ in billions of kelvin). The nuclei themselves are a sketch: '
+                   'helium clusters, with the Hoyle state drawn as the loose "bent arm" found by the first calculation of it from the forces between protons and neutrons '
+                   '(Epelbaum, Krebs, Lee and Meißner, 2011–2012, on a supercomputer). Timing is not to scale: each step really takes about 10<sup>−16</sup> s. '
+                   '<b>History.</b> Öpik and Salpeter worked out the two-step path through beryllium-8 in 1951–52. In 1953 Fred Hoyle argued that it would still be far too slow '
+                   'to make the carbon we see unless carbon-12 had an energy level near 7.68 MeV. Ward Whaling\'s group at Caltech found it that same year, and in 1957 '
+                   'Cook, Fowler and the Lauritsens showed it could be made from three helium nuclei. William Fowler shared the 1983 Nobel Prize in Physics for this line of work; Hoyle did not.'),
+    }
+
+
+rx = {'reactions': [h3()] + ([fh2()] if os.path.exists('fh2_path.json') else []) + [hoyle()]}
 body = open('template.html').read().replace('__RX__', json.dumps(rx, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/'))
 head, rest = body.split('</style>', 1)
 doc = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
