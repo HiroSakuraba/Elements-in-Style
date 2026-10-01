@@ -18,6 +18,8 @@
   --well: #05070a;
   --q-up: #d8457a;
   --q-down: #2f86c9;
+  --p-col: #ef5a43;
+  --n-col: #9db4cc;
   --f-display: "Questrial", "Century Gothic", "Avenir Next", "Helvetica Neue", sans-serif;
   --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -26,12 +28,12 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #4c5663; --ink-3: #8a929c; --rule: #d3d7d0;
-    --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; --q-up: #c2305f; --q-down: #1f6fae; color-scheme: light;
+    --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; --q-up: #c2305f; --q-down: #1f6fae; --p-col: #d23f2a; --n-col: #5f7894; color-scheme: light;
   }
 }
 :root[data-theme="light"] {
   --bg: #f3f4f1; --bg-2: #e8eae5; --ink: #1b2027; --ink-2: #4c5663; --ink-3: #8a929c; --rule: #d3d7d0;
-  --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; --q-up: #c2305f; --q-down: #1f6fae; color-scheme: light;
+  --accent: #0a6f9c; --tile-s: 62%; --tile-l: 80%; --tile-ink: #1b2027; --well: #05070a; --q-up: #c2305f; --q-down: #1f6fae; --p-col: #d23f2a; --n-col: #5f7894; color-scheme: light;
 }
 * { box-sizing: border-box; }
 html, body { background: var(--bg); color: var(--ink); }
@@ -75,7 +77,7 @@ main.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 4
 
 aside.panel { min-width: 0; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 24px); overflow: auto; padding-right: 2px; }
 .idcard { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: center; margin-bottom: 12px; }
-.bigsym { grid-row: span 3; width: 84px; height: 84px; border-radius: 12px; display: grid; place-items: center; background: hsl(var(--h) var(--tile-s) var(--tile-l)); color: var(--tile-ink); position: relative; }
+.bigsym { grid-row: span 4; width: 84px; height: 84px; border-radius: 12px; display: grid; place-items: center; background: hsl(var(--h) var(--tile-s) var(--tile-l)); color: var(--tile-ink); position: relative; }
 .bigsym b { font: 400 40px/1 var(--f-display); }
 .bigsym i { position: absolute; top: 6px; left: 8px; font: 12px var(--f-data); font-style: normal; opacity: .8; }
 .idcard h2 { font: 400 26px/1.1 var(--f-display); letter-spacing: .06em; margin: 0; }
@@ -140,6 +142,28 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 .hist .fact b { color: var(--accent); }
 .hist .fact span { font: 400 16px/1.45 var(--f-display); letter-spacing: .01em; }
 .tl { width: 100%; height: auto; display: block; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 5px 10px; font-size: 12px; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--bg); color: var(--accent); }
+.obar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; }
+.obar span { display: grid; place-items: center; font: 500 11px var(--f-data); color: var(--tile-ink); background: hsl(var(--oh) var(--os) var(--tile-l)); min-width: 0; overflow: hidden; white-space: nowrap; }
+.olist { display: grid; gap: 7px; }
+.olist .r { display: grid; grid-template-columns: 12px 1fr auto; gap: 4px 10px; align-items: baseline; }
+.olist .dot { width: 11px; height: 11px; border-radius: 3px; background: hsl(var(--oh) var(--os) var(--tile-l)); border: 1px solid var(--ink-3); align-self: center; }
+.olist .r b { font-weight: 500; font-size: 14px; }
+.olist .r em { font: 13px var(--f-data); font-style: normal; color: var(--ink); font-variant-numeric: tabular-nums; }
+.olist .r small { grid-column: 2 / 4; color: var(--ink-2); font-size: 12.5px; }
+.legend .sw.o { background: hsl(var(--oh) var(--os) var(--tile-l)); }
+.nucinfo { margin: 8px 0 0; display: grid; gap: 8px; }
+.nucinfo .ln { font: 12px/1.5 var(--f-data); color: var(--ink-2); }
+.nucinfo .ln b { color: var(--ink); font-weight: 500; }
+.nucinfo .pn { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+.isostrip { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 2px; }
+.isostrip button { flex: 0 0 auto; min-width: 30px; padding: 3px 4px; font: 10.5px/1.2 var(--f-data); border-radius: 4px; color: var(--ink-2); background: var(--bg-2); }
+.isostrip button.st { background: color-mix(in srgb, var(--accent) 22%, var(--bg-2)); color: var(--ink); }
+.isostrip button.ll { background: color-mix(in srgb, var(--accent) 9%, var(--bg-2)); }
+.isostrip button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: -2px; color: var(--ink); }
 .qbar { display: flex; height: 12px; border-radius: 3px; overflow: hidden; margin: 12px 0 4px; }
 .qbar .u { background: var(--q-up); } .qbar .d { background: var(--q-down); }
 .qkey { display: flex; justify-content: space-between; font: 12px var(--f-data); color: var(--ink-2); }
@@ -176,7 +200,8 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
     <section class="chart" aria-label="Spiral periodic table">
       <div class="chart-bar">
         <span class="hint" id="chartHint">Scroll or pinch to zoom · drag to pan · ←/→ steps through Z</span>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span class="seg" role="group" aria-label="Color the spiral by"><button id="colFamily" aria-pressed="true">Family</button><button id="colOrigin" aria-pressed="false">Cosmic origin</button></span>
           <button id="zoomIn" aria-label="Zoom in">+</button>
           <button id="zoomOut" aria-label="Zoom out">−</button>
           <button id="resetView">Whole spiral</button>
@@ -184,7 +209,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
       </div>
       <div class="svgbox"><svg id="spiral" role="group" aria-label="Elements arranged on a spiral"></svg></div>
       <div class="legend" id="legend"></div>
-      <p class="foot">Lanthanides (La–Yb) and actinides (Ac–No) branch off between groups 2 and 3 into the two outer arcs. Lu and Lr sit in group 3, as in the IUPAC 2021 layout. Element data from the mendeleev database (NIST, NUBASE and CRC sources); values for elements past fermium are mostly predictions.</p>
+      <p class="foot">Lanthanides (La–Yb) and actinides (Ac–No) branch off between groups 2 and 3 into the two outer arcs. In Cosmic origin coloring, each tile is split in proportion to where the Solar System’s supply of that element was made. Lu and Lr sit in group 3, as in the IUPAC 2021 layout. Element data from the mendeleev database (NIST, NUBASE and CRC sources); values for elements past fermium are mostly predictions.</p>
     </section>
 
     <aside class="panel" aria-label="Selected element">
@@ -200,6 +225,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
             <button id="modeOrb" aria-pressed="false">3D</button>
             <button id="modeElek" aria-pressed="false">Elektronium</button>
             <button id="modeShells" aria-pressed="false">Shells</button>
+            <button id="modeNuc" aria-pressed="false">Nucleus</button>
             <button id="pulseBtn" aria-pressed="true">Pulse</button>
           </div>
         </div>
@@ -207,9 +233,12 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
         <div class="ov b" id="orbChips" hidden></div>
         <div class="ov b" id="elekChips" hidden></div>
         <div class="ov b" id="shellChips" hidden></div>
+        <div class="ov b" id="nucChips" hidden></div>
       </div>
       <div class="xinfo" id="xInfo" hidden></div>
+      <div class="nucinfo" id="nucInfo" hidden></div>
       <p class="wellnote" id="wellNote"></p>
+      <details class="hist" id="orig" open><summary>Cosmic origin<span class="when" id="origWhen"></span></summary><div class="hbody" id="origBody"></div></details>
       <details class="hist" id="hist" open><summary>History<span class="when" id="histWhen"></span></summary><div class="hbody" id="histBody"></div></details>
       <div id="stats"></div>
     </aside>
@@ -219,6 +248,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 <script id="data" type="application/json">__DATA__</script>
 <script id="rad" type="application/json">__RAD__</script>
 <script id="hist-data" type="application/json">__HIST__</script>
+<script id="orig-data" type="application/json">__ORIG__</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
@@ -299,6 +329,20 @@ for (let c = 0; c < 18; c++) {
   const t = mk('text', { x: 0, y: -4, 'text-anchor': 'middle' }, g); t.textContent = 'PERIOD 1';
   const t2 = mk('text', { x: 0, y: 10, 'text-anchor': 'middle' }, g); t2.textContent = 'STARTS AT H ↑'; }
 
+const ORIG = JSON.parse(document.getElementById('orig-data').textContent);
+const PROC = {
+  bb: { name: 'Big Bang', h: 268, s: '46%', what: 'Made in the first few minutes of the universe.' },
+  cr: { name: 'Cosmic-ray fission', h: 322, s: '58%', what: 'Chipped off heavier nuclei by fast particles flying through space.' },
+  lm: { name: 'Dying low-mass stars', h: 30, s: '78%', what: 'Built one neutron at a time inside red giant stars (stars up to about 8 times the Sun’s mass), then puffed out as they died.' },
+  ms: { name: 'Exploding massive stars', h: 205, s: '62%', what: 'Fused inside stars over 8 times the Sun’s mass and blasted out when they collapsed and exploded.' },
+  wd: { name: 'Exploding white dwarfs', h: 54, s: '78%', what: 'Made when a white dwarf star gains too much mass and blows apart (a Type Ia supernova).' },
+  ns: { name: 'Merging neutron stars', h: 152, s: '52%', what: 'Built in seconds by a flood of neutrons when two neutron stars collide (the rapid neutron-capture process).' },
+  rd: { name: 'Radioactive decay', h: 2, s: '62%', what: 'Made on Earth today by uranium and thorium decaying in rocks.' },
+  hm: { name: 'Made by people', h: 215, s: '6%', what: 'Made in nuclear reactors and particle accelerators.' }
+};
+const PROC_ORDER = ['bb', 'cr', 'lm', 'ms', 'wd', 'ns', 'rd', 'hm'];
+const origList = z => Object.entries(ORIG[z].f).sort((a, b) => b[1] - a[1]);
+const procFill = k => `hsl(${PROC[k].h} ${PROC[k].s === '6%' ? '6%' : 'var(--tile-s)'} var(--tile-l))`;
 const tiles = {};
 const tilesG = mk('g', {}, svg);
 EL.forEach(e => {
@@ -306,7 +350,16 @@ EL.forEach(e => {
   const grp = mk('g', { class: 'tile', tabindex: '0', role: 'button', 'aria-label': `${e.name}, ${e.Z}`, 'data-z': e.Z }, tilesG);
   const h = SERIES[e.series] ?? 0;
   grp.style.setProperty('--h', h);
-  mk('path', { d: pathD(g.pts), style: `fill:hsl(${h} var(--tile-s) var(--tile-l))` }, grp);
+  const famFill = `hsl(${h} var(--tile-s) var(--tile-l))`;
+  const og = mk('linearGradient', { id: `og${e.Z}`, x1: 0, y1: 0, x2: 1, y2: 0 }, defs);
+  let acc = 0;
+  PROC_ORDER.filter(k => ORIG[e.Z].f[k]).forEach(k => {
+    const f = ORIG[e.Z].f[k];
+    mk('stop', { offset: acc, style: `stop-color:${procFill(k)}` }, og); acc += f;
+    mk('stop', { offset: Math.min(1, acc), style: `stop-color:${procFill(k)}` }, og);
+  });
+  const tp = mk('path', { d: pathD(g.pts), style: `fill:${famFill}` }, grp);
+  tp.dataset.fam = famFill; tp.dataset.orig = `url(#og${e.Z})`;
   const s = Math.min(g.w, g.h);
   const [cx, cy] = g.c;
   const symSize = s * 0.42;
@@ -389,21 +442,41 @@ document.getElementById('zoomIn').onclick = () => { const c = [vb.x + vb.w / 2, 
 document.getElementById('zoomOut').onclick = () => { const c = [vb.x + vb.w / 2, vb.y + vb.h / 2]; const w = Math.min(HOME.w * 1.3, vb.w * 1.6), h = w * vb.h / vb.w; animateTo({ x: c[0] - w / 2, y: c[1] - h / 2, w, h }, 350); };
 document.getElementById('resetView').onclick = () => { highlightSeries(null); animateTo(HOME); };
 
-/* ---------- series legend / highlight ---------- */
-let litSeries = null;
+/* ---------- legend / highlight: by family or by cosmic origin ---------- */
+let litSeries = null, colorMode = 'family';
+const legend = document.getElementById('legend');
+let legendBtns = [];
 function highlightSeries(s) {
   litSeries = s;
-  EL.forEach(e => tiles[e.Z].classList.toggle('dim', !!s && e.series !== s));
+  EL.forEach(e => {
+    const on = !s || (colorMode === 'family' ? e.series === s : (ORIG[e.Z].f[s] || 0) >= 0.25);
+    tiles[e.Z].classList.toggle('dim', !on);
+  });
   legendBtns.forEach(b => b.setAttribute('aria-pressed', b.dataset.s === s ? 'true' : 'false'));
 }
-const legend = document.getElementById('legend');
-const legendBtns = Object.keys(SERIES).map(s => {
-  const b = document.createElement('button');
-  b.dataset.s = s; b.setAttribute('aria-pressed', 'false');
-  b.innerHTML = `<span class="sw" style="--h:${SERIES[s]}"></span>${SERIES_LABEL[s] || s}`;
-  b.onclick = () => highlightSeries(litSeries === s ? null : s);
-  legend.appendChild(b); return b;
-});
+function buildLegend() {
+  legend.innerHTML = '';
+  const keys = colorMode === 'family' ? Object.keys(SERIES) : PROC_ORDER;
+  legendBtns = keys.map(s => {
+    const b = document.createElement('button');
+    b.dataset.s = s; b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = colorMode === 'family' ? `<span class="sw" style="--h:${SERIES[s]}"></span>${SERIES_LABEL[s] || s}`
+      : `<span class="sw o" style="--oh:${PROC[s].h};--os:${PROC[s].s === '6%' ? '6%' : 'var(--tile-s)'}"></span>${PROC[s].name}`;
+    if (colorMode === 'origin') b.title = PROC[s].what + ' Highlights elements that get at least a quarter of their supply this way.';
+    b.onclick = () => highlightSeries(litSeries === s ? null : s);
+    legend.appendChild(b); return b;
+  });
+}
+function setColorMode(m) {
+  colorMode = m;
+  document.getElementById('colFamily').setAttribute('aria-pressed', m === 'family');
+  document.getElementById('colOrigin').setAttribute('aria-pressed', m === 'origin');
+  EL.forEach(e => { const p = tiles[e.Z].querySelector('path'); p.style.fill = m === 'family' ? p.dataset.fam : p.dataset.orig; });
+  buildLegend(); highlightSeries(null);
+}
+document.getElementById('colFamily').onclick = () => setColorMode('family');
+document.getElementById('colOrigin').onclick = () => setColorMode('origin');
+buildLegend();
 
 /* ---------- element select ---------- */
 const selEl = document.getElementById('elSelect');
@@ -434,6 +507,7 @@ function renderStats(e) {
   idcard.innerHTML = `<div class="bigsym" style="--h:${h}"><i>${e.Z}</i><b>${e.sym}</b></div>
     <h2>${esc(e.name)}</h2>
     <div class="meta">${SERIES_LABEL[e.series] || e.series} · ${fmt(e.mass, 6)} u</div>
+    <div class="meta" id="pnLine">${pnLine(e)}</div>
     <div class="econf">${esc(e.econf.replace(/([spdf])(\d+)/g, (m, a, b) => a + sup(b)).replace(/([spdf])(?=\s|$)/g, '$1¹'))}</div>`;
   const grp = e.Z === 71 || e.Z === 103 ? 3 : e.group;
   const overview = kv([
@@ -519,13 +593,17 @@ function renderStats(e) {
     section('isotopes', 'Isotopes &amp; half-life', `${known} known`, iso) +
     section('quarks', 'Quarks &amp; nucleons', qk.badge, qk.html) +
     section('config', 'Electron configuration', `${m.unpaired} unpaired`, config);
-  renderHistory(e);
+  renderHistory(e); renderOrigin(e);
   stats.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => { openState[d.dataset.k] = d.open; }));
   const qs = document.getElementById('quarkIso');
-  if (qs) qs.onchange = () => { quarkPick[e.Z] = +qs.value; renderStats(e); document.getElementById('quarkIso')?.focus(); };
+  if (qs) qs.onchange = () => { quarkPick[e.Z] = +qs.value; renderStats(e); dirty.nuc = true; if (mode === 'nuc') applyMode(); document.getElementById('quarkIso')?.focus(); };
   const it = document.getElementById('isoToggle');
   if (it) it.onclick = () => { showAllIso = !showAllIso; renderStats(e); };
 }
+
+/* ---------- protons / neutrons ---------- */
+const isoA = e => quarkPick[e.Z] ?? refIsotope(e);
+function pnLine(e) { const A = isoA(e); return `<span style="color:var(--p-col)">●</span> ${e.Z} protons · <span style="color:var(--n-col)">●</span> ${A - e.Z} neutrons <span class="na">(${e.sym}-${A})</span>`; }
 
 /* ---------- quark counts ---------- */
 const M_UP = 2.16, M_DOWN = 4.70, MEV_PER_U = 931.494; // PDG current-quark masses (MeV)
@@ -553,6 +631,21 @@ function quarkSection(e) {
     <div class="qkey"><span><i style="background:var(--q-up)"></i>up ${(up / (3 * A) * 100).toFixed(1)}%</span><span><i style="background:var(--q-down)"></i>down ${(dn / (3 * A) * 100).toFixed(1)}%</span></div>
     <p class="note">Every proton is two up quarks and one down; every neutron is one up and two down. These are the valence quarks, the ones that give a particle its identity. Each proton and neutron also holds a constantly churning sea of gluons and short-lived quark–antiquark pairs, which has no fixed count. The quarks’ own rest masses (up ≈ ${M_UP} MeV, down ≈ ${M_DOWN} MeV, Particle Data Group) add up to only about 1% of the atom’s mass. Nearly all the rest is the energy of the strong force holding them together.</p>`;
   return { html, badge: `${(3 * A).toLocaleString('en-US')} quarks` };
+}
+
+/* ---------- cosmic origin panel ---------- */
+function renderOrigin(e) {
+  const o = ORIG[e.Z], list = origList(e.Z), top = list[0][0];
+  const sty = k => `--oh:${PROC[k].h};--os:${PROC[k].s === '6%' ? '6%' : 'var(--tile-s)'}`;
+  document.getElementById('origWhen').textContent = list.length > 1 && list[1][1] >= 0.3 ? `${PROC[top].name} + ${PROC[list[1][0]].name.toLowerCase()}` : PROC[top].name;
+  const bar = PROC_ORDER.filter(k => o.f[k]).map(k => `<span style="${sty(k)};flex:${o.f[k]}" title="${PROC[k].name} ${Math.round(o.f[k] * 100)}%">${o.f[k] >= 0.12 ? Math.round(o.f[k] * 100) + '%' : ''}</span>`).join('');
+  const rows = list.map(([k, f]) => `<div class="r"><span class="dot" style="${sty(k)}"></span><b>${PROC[k].name}</b><em>${f === 1 ? 'all' : (f < 0.1 ? '~' : '≈ ') + Math.round(f * 100) + '%'}</em><small>${PROC[k].what}</small></div>`).join('');
+  document.getElementById('origBody').innerHTML = `
+    <div class="obar" role="img" aria-label="Where ${esc(e.name)} was made: ${list.map(([k, f]) => `${PROC[k].name} ${Math.round(f * 100)}%`).join(', ')}">${bar}</div>
+    <div class="olist">${rows}</div>
+    ${o.earth ? `<div class="row"><b>On Earth</b><span>${esc(o.earth)}</span></div>` : ''}
+    ${o.note ? `<div class="row fact"><b>Star stuff</b><span>${esc(o.note)}</span></div>` : ''}
+    <p class="note" style="margin:0">Shares are approximate and describe the Solar System’s supply. Categories follow Jennifer Johnson’s Origin of the Elements table (Ohio State) and NASA Goddard’s version of it; shares beyond iron use published slow- and rapid-neutron-capture splits.</p>`;
 }
 
 /* ---------- history panel ---------- */
@@ -664,7 +757,7 @@ const physDir = (X, Y, Zt) => [X, -Zt, Y];
 /* ---------- WebGL scene ---------- */
 let galleryGroup = null, renderer, scene, camera, root, orbGroup = null, wholeGroup = null, elekMesh = null, lutTex = null, axesGroup = null;
 let orbState = { whole: false, key: null, orb: -1 }, elekState = { cut: true, layers: false, excite: false };
-const dirty = { orb: true, whole: true, elek: true, shells: true };
+const dirty = { orb: true, whole: true, elek: true, shells: true, nuc: true };
 let autoSpin = !reduce;
 
 function textSprite(txt, size = 0.1, color = '#f4f1ea') {
@@ -1064,6 +1157,7 @@ function drawShells(now) {
   shctx.imageSmoothingEnabled = true; shctx.imageSmoothingQuality = 'high';
   shctx.drawImage(off, cx - discD / 2, cy - discD / 2, discD, discD);
   shctx.fillStyle = '#fcffa4'; shctx.beginPath(); shctx.arc(cx, cy, 2.5 * dpr, 0, Math.PI * 2); shctx.fill();
+  { const A = isoA(e); label(`${e.Z}p ${A - e.Z}n`, cx, cy + 15 * dpr, 10 * dpr, 'center', '#fcffa4'); }
   const counts = M.shells.map(s => M.occ.reduce((t, o, n) => t + (o.shell === s.i ? occArr[n] : 0), 0));
   M.shells.forEach(s => {
     if (Math.round(counts[s.i]) <= 0) return;
@@ -1149,6 +1243,81 @@ function xUpdate(now) {
   if (name !== xPhaseName) { xPhaseName = name; const el = document.getElementById('xPhase'); if (el) el.textContent = name; }
 }
 
+/* ---------- Nucleus: protons and neutrons, packed at true relative size ---------- */
+let nucGroup = null, nucState = { cut: false };
+const M_H1 = 1.00782503207, M_N = 1.00866491588;
+let fccCache = null;
+function fccPoints() { // FCC lattice sites (touching unit spheres), nearest the centre first
+  if (fccCache) return fccCache;
+  const pts = [], R = 9, hsh = (i, j, k) => { const s = Math.sin(i * 12.9898 + j * 78.233 + k * 37.719) * 43758.5453; return s - Math.floor(s); };
+  for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) for (let k = -R; k <= R; k++) {
+    if ((i + j + k) & 1) continue;
+    const x = i * Math.SQRT1_2, y = j * Math.SQRT1_2, z = k * Math.SQRT1_2;
+    pts.push({ x, y, z, d: Math.hypot(x, y, z) + 0.06 * hsh(i, j, k), h: hsh(k, i, j) });
+  }
+  pts.sort((a, b) => a.d - b.d);
+  return fccCache = pts;
+}
+function bindingPerNucleon(e, A) {
+  const iso = e.isotopes.find(i => i[0] === A); if (!iso || !iso[1] || A === 1) return null;
+  return (e.Z * M_H1 + (A - e.Z) * M_N - iso[1]) * 931.494 / A;
+}
+function buildNuc(e) {
+  if (nucGroup) { root.remove(nucGroup); nucGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
+  const A = isoA(e), Z = e.Z, pts = fccPoints().slice(0, A);
+  const c = pts.reduce((s, p) => [s[0] + p.x / A, s[1] + p.y / A, s[2] + p.z / A], [0, 0, 0]);
+  const S = 0.95 / (0.5 * Math.cbrt(300 / 0.74)) * 0.92, rad = 0.5 * S * 0.97;
+  // spread protons evenly through the nucleus (Bresenham over the shells), shuffled within each shell
+  const order = pts.map((p, i) => ({ p, i, key: Math.round(p.d * 3) + p.h * 0.999 })).sort((a, b) => a.key - b.key);
+  const isP = new Array(A).fill(false);
+  order.forEach((o, n) => { if (Math.floor((n + 1) * Z / A) > Math.floor(n * Z / A)) isP[o.i] = true; });
+  nucGroup = new THREE.Group();
+  const geo = new THREE.SphereGeometry(rad, 22, 16);
+  const pc = getComputedStyle(document.documentElement), pcol = new THREE.Color('#ef5a43'), ncol = new THREE.Color('#9db4cc');
+  const mkMesh = (col, n) => { const m = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: 0.45, metalness: 0.05, emissive: col, emissiveIntensity: 0.08 }), Math.max(1, n)); m.count = n; return m; };
+  const items = pts.map((p, i) => ({ base: new THREE.Vector3((p.x - c[0]) * S, (p.y - c[1]) * S, (p.z - c[2]) * S), proton: isP[i], ph: p.h * 6.283, w: 2.6 + 2.2 * ((p.h * 7.31) % 1), dir: new THREE.Vector3(Math.sin(p.h * 40), Math.cos(p.h * 23), Math.sin(p.h * 17)).normalize() }));
+  const vis = items.filter(it => !nucState.cut || !(it.base.x < -1e-6 && it.base.z < -1e-6));
+  const prot = vis.filter(it => it.proton), neut = vis.filter(it => !it.proton);
+  const pm = mkMesh(pcol, prot.length), nm = mkMesh(ncol, neut.length);
+  nucGroup.add(pm, nm);
+  nucGroup.userData = { pm, nm, prot, neut, rad };
+  nucPose(0, 0);
+  root.add(nucGroup);
+  renderNucInfo(e);
+}
+function nucPose(time, amp) {
+  if (!nucGroup) return;
+  const { pm, nm, prot, neut, rad } = nucGroup.userData, M = new THREE.Matrix4(), v = new THREE.Vector3();
+  [[pm, prot], [nm, neut]].forEach(([mesh, list]) => {
+    list.forEach((it, i) => { v.copy(it.dir).multiplyScalar(amp * rad * 0.16 * Math.sin(time * it.w + it.ph)).add(it.base); M.makeTranslation(v.x, v.y, v.z); mesh.setMatrixAt(i, M); });
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+}
+function renderNucInfo(e) {
+  const box = document.getElementById('nucInfo');
+  if (mode !== 'nuc') { box.hidden = true; return; }
+  box.hidden = false;
+  const A = isoA(e), N = A - e.Z, iso = e.isotopes.find(i => i[0] === A), be = bindingPerNucleon(e, A);
+  const Rfm = 1.2 * Math.cbrt(A), ratio = e.radius ? e.radius * 1000 / Rfm : null;
+  const life = !iso ? '' : iso[3] === 'stable' ? 'stable' : iso[3] ? `half-life ${iso[3]}` : 'half-life unknown';
+  const strip = e.isotopes.map(i => {
+    const cls = i[3] === 'stable' ? 'st' : (i[4] != null && i[4] >= 3.15e7 ? 'll' : '');
+    return `<button class="${cls}" data-a="${i[0]}" aria-pressed="${i[0] === A}" title="${e.sym}-${i[0]}: ${i[0] - e.Z} neutrons, ${i[3] || 'half-life unknown'}">${i[0]}</button>`;
+  }).join('');
+  box.innerHTML = `
+    <div class="ln"><b>${e.sym}-${A}</b> · <span class="pn" style="background:var(--p-col)"></span>${e.Z} protons · <span class="pn" style="background:var(--n-col)"></span>${N} neutrons · ${N}/${e.Z} = ${(N / e.Z).toFixed(2)} neutrons per proton${life ? ' · ' + esc(life) : ''}</div>
+    <div class="ln">radius ≈ ${Rfm.toFixed(1)} fm${ratio ? ` · about ${(+ratio.toPrecision(2)).toLocaleString('en-US')} times smaller than the whole atom` : ''}${be ? ` · binding energy ${be.toFixed(2)} MeV per nucleon` : ''}</div>
+    <div class="ln">Isotopes of ${esc(e.name)} by mass number — tap one; shaded = stable, lightly shaded = half-life over a year:</div>
+    <div class="isostrip" role="group" aria-label="Isotopes">${strip}</div>`;
+  box.querySelectorAll('.isostrip button').forEach(b => b.onclick = () => { quarkPick[e.Z] = +b.dataset.a; renderStats(e); dirty.nuc = true; applyMode(); });
+  const cur = box.querySelector('.isostrip button[aria-pressed="true"]'); if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+}
+function renderNucChips() {
+  const box = document.getElementById('nucChips'); box.innerHTML = '';
+  chipBtn(box, 'Cut open', nucState.cut, () => { nucState.cut = !nucState.cut; dirty.nuc = true; applyMode(); }, 'Remove a wedge to see protons and neutrons inside');
+}
+const NUC_NOTE = 'Red spheres are protons, blue-grey spheres are neutrons, packed as tightly as they really are (nuclei are about as dense as close-packed balls). Size is to scale between elements: radius grows as the cube root of the mass number, from one lone proton in hydrogen to about 300 nucleons in the heaviest. The gentle jiggle stands in for the nucleons’ constant quantum motion; real nucleons have no fixed positions. Light nuclei have about one neutron per proton; heavy ones need half as many again, because extra neutrons add strong-force glue without adding electric repulsion.';
+
 /* ---------- modes, chips, render loop ---------- */
 const NOTES = {
   slice: 'Each square is a cut through the nucleus in the xz-plane, colored by how likely the electron is to be found there (black never, white most likely). The angular shape of a p, d or f orbital is the same in every atom; what the element changes is the radial part — how big the orbital is, where its dark nodal rings fall, and how deep it dips toward the nucleus. Radial functions come from a self-consistent density-functional calculation of each atom, so True size shows real proportions: inner shells shrink to specks as the nuclear charge grows. m and −m look the same, so only m ≥ 0 is shown. Tap a square to enlarge it.',
@@ -1156,7 +1325,7 @@ const NOTES = {
   elek: 'Elektronium, from the Karlsruhe Physics Course: all of the atom’s electrons drawn as one continuous fluid whose density is the quantum probability density. Colors follow a log scale, and distances are rescaled so the shells sit evenly spaced. Layers shows how much Elektronium sits at each distance, so the shells glow as separate layers. Partly filled subshells make real bulges. Drag to rotate.',
   shells: 'No dots: each shell is a layer of Elektronium, tinted from K (innermost) outward, with shells evenly spaced. The graph shows the radial density on a true, logarithmic distance scale — one hump per shell, and each hump’s area is its electron count. Replay pours the electrons in the order subshells fill (1s, 2s, 2p, 3s, 3p, 4s, 3d …); the shapes shown during filling use the finished atom’s orbitals.'
 };
-const TAGS = { slice: 'PROBABILITY DENSITY |ψ|² · xz-PLANE', orb: 'ORBITAL SHAPES · 3D', elek: 'ELEKTRONIUM', shells: 'SHELLS · ELEKTRONIUM LAYERS' };
+const TAGS = { slice: 'PROBABILITY DENSITY |ψ|² · xz-PLANE', orb: 'ORBITAL SHAPES · 3D', elek: 'ELEKTRONIUM', shells: 'SHELLS · ELEKTRONIUM LAYERS', nuc: 'NUCLEUS · PROTONS AND NEUTRONS' };
 function chipBtn(box, txt, pressed, fn, title) { const b = document.createElement('button'); b.textContent = txt; b.setAttribute('aria-pressed', pressed); if (title) b.title = title; b.onclick = fn; box.appendChild(b); return b; }
 function renderOrbChips() {
   const box = document.getElementById('orbChips'); box.innerHTML = '';
@@ -1196,18 +1365,19 @@ function renderShellChips() {
 }
 let lastView = '';
 function applyMode() {
-  const gl = mode === 'orb' || mode === 'elek';
-  const view = mode === 'elek' ? 'cut' : mode === 'orb' && orbState.whole ? 'cut' : mode === 'orb' ? 'orb' : '';
+  const gl = mode === 'orb' || mode === 'elek' || mode === 'nuc';
+  const view = mode === 'elek' ? 'cut' : mode === 'orb' && orbState.whole ? 'cut' : mode === 'nuc' && nucState.cut ? 'cut' : mode === 'orb' || mode === 'nuc' ? 'orb' : '';
   if (root && view && view !== lastView) { if (view === 'cut') root.rotation.set(0.45, 2.0, 0); else root.rotation.set(0.42, -0.62, 0); }
   if (view) lastView = view;
-  ['Slice', 'Orb', 'Elek', 'Shells'].forEach(k => document.getElementById('mode' + k).setAttribute('aria-pressed', mode === k.toLowerCase()));
+  ['Slice', 'Orb', 'Elek', 'Shells', 'Nuc'].forEach(k => document.getElementById('mode' + k).setAttribute('aria-pressed', mode === k.toLowerCase()));
   canvas.hidden = !gl || !haveGL; sliceCv.hidden = mode !== 'slice'; shellCv.hidden = mode !== 'shells';
   document.getElementById('sliceChips').hidden = mode !== 'slice';
   document.getElementById('orbChips').hidden = mode !== 'orb';
   document.getElementById('elekChips').hidden = mode !== 'elek';
   document.getElementById('shellChips').hidden = mode !== 'shells';
+  document.getElementById('nucChips').hidden = mode !== 'nuc';
   document.getElementById('wellTag').textContent = TAGS[mode];
-  document.getElementById('wellNote').textContent = NOTES[mode];
+  document.getElementById('wellNote').textContent = mode === 'nuc' ? NUC_NOTE : NOTES[mode];
   const e = byZ(current);
   if (mode === 'slice') { renderSliceChips(); buildSlices(); kickSlice(); }
   if (mode === 'orb' && haveGL) {
@@ -1222,12 +1392,15 @@ function applyMode() {
   if (wholeGroup) wholeGroup.visible = mode === 'orb' && orbState.whole;
   if (elekMesh) elekMesh.visible = mode === 'elek';
   if (axesGroup) axesGroup.visible = mode === 'orb' && !orbState.whole && !galleryGroup;
+  if (mode === 'nuc' && haveGL) { if (dirty.nuc) { buildNuc(e); dirty.nuc = false; } renderNucChips(); }
+  if (nucGroup) nucGroup.visible = mode === 'nuc';
+  renderNucInfo(e);
   if (mode === 'shells') { renderShellChips(); kickShells(dirty.shells); dirty.shells = false; }
 }
 
 let t0 = performance.now(), frozen = 0;
 function loop(now) {
-  if (mode === 'orb' || mode === 'elek') {
+  if (mode === 'orb' || mode === 'elek' || mode === 'nuc') {
     const t = (now - t0) / 1000, time = pulseOn && !reduce ? t : frozen, pz = pulseOn && !reduce ? 1 : 0;
     if (autoSpin) root.rotation.y += 0.0028;
     if (galleryGroup && galleryGroup.visible) galleryGroup.userData.items.forEach(it => it.rotation.copy(root.rotation));
@@ -1238,6 +1411,7 @@ function loop(now) {
       root.updateMatrixWorld(); u.uCam.value.copy(elekMesh.worldToLocal(camera.position.clone()));
       if (elekState.excite) xUpdate(now);
     }
+    if (mode === 'nuc') nucPose(time, pz);
     renderer.render(scene, camera);
   }
   requestAnimationFrame(loop);
@@ -1246,6 +1420,7 @@ document.getElementById('modeSlice').onclick = () => { mode = 'slice'; applyMode
 document.getElementById('modeOrb').onclick = () => { mode = 'orb'; applyMode(); };
 document.getElementById('modeElek').onclick = () => { mode = 'elek'; applyMode(); };
 document.getElementById('modeShells').onclick = () => { mode = 'shells'; dirty.shells = true; applyMode(); };
+document.getElementById('modeNuc').onclick = () => { mode = 'nuc'; applyMode(); };
 document.getElementById('pulseBtn').onclick = ev => { pulseOn = !pulseOn; frozen = (performance.now() - t0) / 1000; ev.currentTarget.setAttribute('aria-pressed', pulseOn); kickSlice(); if (mode === 'shells') kickShells(false); };
 new ResizeObserver(() => { if (mode === 'shells') kickShells(false); }).observe(well);
 
@@ -1436,13 +1611,13 @@ function select(z, zoom) {
   tilesG.appendChild(tiles[z]);
   selEl.value = z;
   renderStats(e);
-  if (zoom) { animateTo(focusBox(e)); highlightSeries(e.series); }
+  if (zoom) { animateTo(focusBox(e)); highlightSeries(colorMode === 'family' ? e.series : origList(e.Z)[0][0]); }
   sliceState.sel = -1; sliceState.outer = null;
   Object.keys(dirty).forEach(k => { dirty[k] = true; }); orbState.key = null; orbState.orb = -1; shellPre = null;
   applyMode();
 }
 if (haveGL) initGL();
-else { document.getElementById('modeOrb').hidden = true; document.getElementById('modeElek').hidden = true; }
+else { document.getElementById('modeOrb').hidden = true; document.getElementById('modeElek').hidden = true; document.getElementById('modeNuc').hidden = true; }
 select(26, false);
 })();
 </script>
