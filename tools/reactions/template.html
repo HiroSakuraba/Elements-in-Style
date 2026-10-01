@@ -160,8 +160,20 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 
 let R = null, u = 0, playing = false, mode = 'slice', showSpin = true;
 // ---------- decode a reaction's density frames ----------
+async function inflate(b64) {
+  const raw = atob(b64), n = raw.length, bytes = new Uint8Array(n);
+  for (let i = 0; i < n; i++) bytes[i] = raw.charCodeAt(i);
+  if (typeof DecompressionStream === 'undefined') return null;
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+}
+async function prepare3D(rx) {   // frames f >= nh are the mirror image (z -> -z) of frame 2(nh-1) - f
+  const g = rx.grid3, bytes = await inflate(g.b64); if (!bytes) { rx.broken = true; return; }
+  const per = g.nz * g.ny * g.nx; rx.rho = []; rx.spin = [];
+  for (let f = 0; f < rx.frames.length; f++) { const src = f < g.nh ? f : 2 * (g.nh - 1) - f, flip = f >= g.nh;
+    rx.rho.push({ a: bytes.subarray(src * per * 2, src * per * 2 + per), flip }); rx.spin.push({ a: bytes.subarray(src * per * 2 + per, (src + 1) * per * 2), flip }); }
+}
 function decode(rx) {
-  if (!rx.grid) return rx;
+  if (!rx.grid || rx.rho) return rx;
   const raw = atob(rx.grid.b64), n = raw.length, bytes = new Uint8Array(n);
   for (let i = 0; i < n; i++) bytes[i] = raw.charCodeAt(i);
   const { nz, nr, nf } = rx.grid, per = nz * nr;
@@ -179,18 +191,23 @@ let off = null, offCtx = null, offImg = null;
 function drawSlice() {
   const rect = view.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2), W = Math.round(rect.width * dpr), H = Math.round(rect.height * dpr);
   if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-  const g = R.grid, aspect = W / H, xHalf = Math.min(g.z1, aspect < 1.5 ? 3.9 : 4.2), yHalf = xHalf / aspect, cx = centerZ();
+  const g3 = R.grid3, g = R.grid || { z0: g3.z0, z1: g3.z1, nz: g3.nz }, aspect = W / H, cx = centerZ(), zz = R.atoms.map(a => atomPos(a)[2]);
+  const xHalf = Math.min(g.z1, Math.max(aspect < 1.5 ? 3.9 : 4.2, (Math.max(...zz) - Math.min(...zz)) / 2 + 1.9)), yHalf = xHalf / aspect;
   const RW = Math.min(420, Math.round(W / dpr / 1.4)), RH = Math.round(RW / aspect);
   if (!off || off.width !== RW || off.height !== RH) { off = document.createElement('canvas'); off.width = RW; off.height = RH; offCtx = off.getContext('2d'); offImg = offCtx.createImageData(RW, RH); }
-  const f = Math.min(nF() - 1.000001, Math.max(0, u)), i0 = Math.floor(f), t = f - i0, A = R.rho[i0], B = R.rho[i0 + 1], SA = R.spin[i0], SB = R.spin[i0 + 1];
-  const d = offImg.data, dz = (g.z1 - g.z0) / (g.nz - 1), dr = g.r1 / (g.nr - 1);
+  const f = Math.min(nF() - 1.000001, Math.max(0, u)), i0 = Math.floor(f), t = f - i0;
+  const wrap = o => o && o.a ? o : { a: o, flip: false }, A = wrap(R.rho[i0]), B = wrap(R.rho[i0 + 1]), SA = wrap(R.spin[i0]), SB = wrap(R.spin[i0 + 1]);
+  const d = offImg.data, dz = (g.z1 - g.z0) / (g.nz - 1);
+  // cross-section coordinate c: distance from the axis (cylindrical grid) or signed x (3D grid, slice y = 0)
+  const NC = g3 ? g3.nx : g.nr, C0 = g3 ? g3.x0 : 0, dr = g3 ? (g3.x1 - g3.x0) / (g3.nx - 1) : g.r1 / (g.nr - 1), STR = g3 ? g3.ny * g3.nx : g.nr;
   const sCol = hexRGB(css('--spin') || '#4fe3c1'), nCol = hexRGB(css('--spin-neg') || '#ff6fa8');
   for (let y = 0; y < RH; y++) for (let x = 0; x < RW; x++) {
-    const z = cx - xHalf + (x + 0.5) / RW * 2 * xHalf, rr = Math.abs(-yHalf + (y + 0.5) / RH * 2 * yHalf);
-    const fz = (z - g.z0) / dz, fr = rr / dr, p = (y * RW + x) * 4;
-    if (fz < 0 || fz >= g.nz - 1 || fr >= g.nr - 1) { d[p] = LUT[0]; d[p + 1] = LUT[1]; d[p + 2] = LUT[2]; d[p + 3] = 255; continue; }
+    const z = cx - xHalf + (x + 0.5) / RW * 2 * xHalf, vy = yHalf - (y + 0.5) / RH * 2 * yHalf, rr = g3 ? vy : Math.abs(vy);
+    const fz = (z - g.z0) / dz, fr = (rr - C0) / dr, p = (y * RW + x) * 4;
+    if (fz < 0 || fz >= g.nz - 1 || fr < 0 || fr >= NC - 1) { d[p] = LUT[0]; d[p + 1] = LUT[1]; d[p + 2] = LUT[2]; d[p + 3] = 255; continue; }
     const iz = fz | 0, ir = fr | 0, tz = fz - iz, tr = fr - ir;
-    const bil = arr => { const k = iz * g.nr + ir; return (arr[k] * (1 - tz) + arr[k + g.nr] * tz) * (1 - tr) + (arr[k + 1] * (1 - tz) + arr[k + g.nr + 1] * tz) * tr; };
+    const bil = o => { const arr = o.a, z0 = o.flip ? g.nz - 1 - iz : iz, z1 = o.flip ? z0 - 1 : z0 + 1, k0 = z0 * STR + ir, k1 = z1 * STR + ir;
+      return (arr[k0] * (1 - tz) + arr[k1] * tz) * (1 - tr) + (arr[k0 + 1] * (1 - tz) + arr[k1 + 1] * tz) * tr; };
     const v = lerp(bil(A), bil(B), t) / 255;
     let r = LUT[(v * 255 | 0) * 3], gg = LUT[(v * 255 | 0) * 3 + 1], b = LUT[(v * 255 | 0) * 3 + 2];
     if (showSpin) { const s = (lerp(bil(SA), bil(SB), t) - 128) / 127, a = Math.min(1, Math.abs(s) * 1.25), c = s > 0 ? sCol : nCol;
@@ -201,23 +218,31 @@ function drawSlice() {
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(off, 0, 0, W, H);
   // atoms, bonds, labels
   const X = z => (z - cx + xHalf) / (2 * xHalf) * W, Y0 = H / 2, s2 = W / (2 * xHalf);
-  const atoms = R.atoms.map(a => ({ ...a, z: atomZ(a) }));
+  const atoms = R.atoms.map(a => { const P = atomPos(a); return { ...a, sx: X(P[2]), sy: Y0 - P[0] * s2, inPlane: Math.abs(P[1]) < 0.2 }; });
   ctx.lineCap = 'round';
-  R.bonds.forEach(bd => { const o = at(bd.key); if (o < 0.04) return; const A1 = atoms[bd.a], B1 = atoms[bd.b];
-    ctx.strokeStyle = `rgba(252,255,164,${Math.min(0.9, 0.2 + o * 0.7)})`; ctx.lineWidth = (1 + o * 5) * dpr; ctx.setLineDash(o < 0.75 ? [6 * dpr, 5 * dpr] : []);
-    ctx.beginPath(); ctx.moveTo(X(A1.z), Y0); ctx.lineTo(X(B1.z), Y0); ctx.stroke(); ctx.setLineDash([]); });
+  R.bonds.forEach(bd => { const o = bd.fixed != null ? bd.fixed : at(bd.key); if (o < 0.04) return; const A1 = atoms[bd.a], B1 = atoms[bd.b];
+    ctx.globalAlpha = A1.inPlane && B1.inPlane ? 1 : 0.45;
+    ctx.strokeStyle = `rgba(252,255,164,${Math.min(0.9, 0.2 + o * 0.7)})`; ctx.lineWidth = (1 + o * (bd.fixed != null ? 2 : 5)) * dpr; ctx.setLineDash(o < 0.75 ? [6 * dpr, 5 * dpr] : []);
+    ctx.beginPath(); ctx.moveTo(A1.sx, A1.sy); ctx.lineTo(B1.sx, B1.sy); ctx.stroke(); ctx.setLineDash([]); });
+  ctx.globalAlpha = 1;
   atoms.forEach(a => {
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X(a.z), Y0, (a.dot || 4) * dpr, 0, Math.PI * 2); ctx.fill();
-    say(a.label, X(a.z) - (a.sub ? 3 * dpr : 0), Y0 - 16 * dpr, 'center', 13); if (a.sub) say(a.sub, X(a.z) + 6 * dpr, Y0 - 12 * dpr, 'center', 9.5);
+    ctx.globalAlpha = a.inPlane ? 1 : 0.5;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(a.sx, a.sy, (a.dot || 4) * dpr, 0, Math.PI * 2); ctx.fill();
+    if (a.inPlane && !a.quiet) { say(a.label, a.sx - (a.sub ? 3 * dpr : 0), a.sy - 16 * dpr, 'center', 13); if (a.sub) say(a.sub, a.sx + 6 * dpr, a.sy - 12 * dpr, 'center', 9.5); }
   });
+  ctx.globalAlpha = 1;
   // scale bar: 1 Å
   const sb = s2 * 1; ctx.strokeStyle = '#cfd8e3'; ctx.lineWidth = 2 * dpr; ctx.beginPath(); ctx.moveTo(14 * dpr, H - 16 * dpr); ctx.lineTo(14 * dpr + sb, H - 16 * dpr); ctx.stroke();
   say('1 Å = 100 pm', 14 * dpr + sb + 8 * dpr, H - 12 * dpr, 'left', 10.5);
   function say(txt, x, y, al, sz) { ctx.font = `500 ${sz * dpr}px "IBM Plex Sans", system-ui, sans-serif`; ctx.textAlign = al; ctx.lineWidth = 3 * dpr; ctx.strokeStyle = 'rgba(5,7,10,.85)'; ctx.strokeText(txt, x, y); ctx.fillStyle = '#eef4fa'; ctx.fillText(txt, x, y); }
 }
 function hexRGB(h) { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
-function centerZ() { const zs = R.atoms.map(atomZ); return (Math.min(...zs) + Math.max(...zs)) / 2; }
-function atomZ(a) { return a.zKey ? a.sign * at(a.zKey) : 0; }
+function centerZ() { const zs = R.atoms.map(a => atomPos(a)[2]); return (Math.min(...zs) + Math.max(...zs)) / 2; }
+function atomZ(a) { return atomPos(a)[2]; }
+function atomPos(a) {   // [x, y, z] in Angstrom; z is the reaction axis
+  if (a.h != null) { const r = at('rch'), th = at('th') * Math.PI / 180, ph = a.h * 2 * Math.PI / 3; return [r * Math.sin(th) * Math.cos(ph), r * Math.sin(th) * Math.sin(ph), r * Math.cos(th)]; }
+  return [0, 0, a.zKey ? a.sign * at(a.zKey) : 0];
+}
 
 // ---------- Elektronium (3D, ray-marched from the cylindrical density) ----------
 const gl = document.getElementById('gl');
@@ -250,6 +275,27 @@ void main() {
   }
   gl_FragColor = vec4(col, 1.0 - T);
 }`;
+const FS3 = `
+precision highp float; precision highp sampler3D; varying vec3 vPos;
+uniform sampler3D uA; uniform sampler3D uB; uniform sampler2D uLut; uniform vec3 uCam; uniform vec3 uH; uniform float uT, uSpin;
+void main() {
+  vec3 ro = uCam, rd = normalize(vPos - uCam);
+  vec3 t0 = (-uH - ro) / rd, t1 = (uH - ro) / rd, tn = min(t0, t1), tf = max(t0, t1);
+  float a = max(max(tn.x, tn.y), max(tn.z, 0.0)), b = min(min(tf.x, tf.y), tf.z); if (b <= a) discard;
+  const int N = 140; float dt = (b - a) / float(N); vec3 col = vec3(0.0); float T = 1.0;
+  for (int i = 0; i < N; i++) {
+    vec3 p = ro + rd * (a + (float(i) + 0.5) * dt);
+    vec3 tc = vec3(p.y / (2.0 * uH.y) + 0.5, p.z / (2.0 * uH.z) + 0.5, p.x / (2.0 * uH.x) + 0.5);
+    vec2 s = mix(texture(uA, tc).rg, texture(uB, tc).rg, uT);
+    float v = s.r; vec3 c = texture2D(uLut, vec2(v, 0.5)).rgb;
+    float sp = (s.g - 0.502) / 0.498;
+    if (uSpin > 0.5) c = mix(c, sp > 0.0 ? vec3(0.25, 0.95, 0.75) : vec3(1.0, 0.35, 0.62), clamp(abs(sp) * 2.2, 0.0, 1.0));
+    float al = 1.0 - exp(-dt * 5.0 * pow(v, 2.4) - dt * (uSpin > 0.5 ? 6.0 * abs(sp) : 0.0));
+    col += T * al * c * 1.15; T *= 1.0 - al; if (T < 0.02) break;
+  }
+  gl_FragColor = vec4(col, 1.0 - T);
+}`;
+let mesh3 = null, tex3 = [null, null], tex3Key = [null, null];
 function initGL() {
   renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x05070a, 1);
   scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.1, 100);
@@ -260,12 +306,33 @@ function initGL() {
       uZ0: { value: 0 }, uZ1: { value: 0 }, uR1: { value: 0 }, uCols: { value: 1 }, uRows: { value: 1 }, uNZ: { value: 1 }, uNR: { value: 1 }, uHalf: { value: 4 } } });
   mat.blending = THREE.CustomBlending; mat.blendSrc = THREE.OneFactor; mat.blendDst = THREE.OneMinusSrcAlphaFactor;
   mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat); mesh.renderOrder = 1; scene.add(mesh);
-  nuclei = [0, 1, 2].map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff })); scene.add(m); return m; });
+  if (renderer.capabilities.isWebGL2 && THREE.DataTexture3D) {
+    const m3 = new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: FS3, transparent: true, side: THREE.BackSide, depthWrite: false,
+      uniforms: { uA: { value: null }, uB: { value: null }, uLut: { value: lt }, uCam: { value: new THREE.Vector3() }, uH: { value: new THREE.Vector3(1, 1, 1) }, uT: { value: 0 }, uSpin: { value: 1 } } });
+    m3.blending = THREE.CustomBlending; m3.blendSrc = THREE.OneFactor; m3.blendDst = THREE.OneMinusSrcAlphaFactor;
+    mesh3 = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), m3); mesh3.renderOrder = 1; mesh3.visible = false; scene.add(mesh3);
+  }
+  nuclei = [0, 1, 2, 3, 4, 5, 6, 7].map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff })); scene.add(m); return m; });
   gl.addEventListener('pointerdown', ev => { drag = [ev.clientX, ev.clientY]; gl.setPointerCapture(ev.pointerId); });
   gl.addEventListener('pointermove', ev => { if (!drag) return; rotY += (ev.clientX - drag[0]) * 0.008; rotX = Math.max(-1.3, Math.min(1.3, rotX + (ev.clientY - drag[1]) * 0.008)); drag = [ev.clientX, ev.clientY]; draw(); });
   gl.addEventListener('pointerup', () => { drag = null; });
 }
+function vol3(slot, f) {   // full-y RGBA volume for frame f, rebuilt only when the frame changes
+  if (tex3Key[slot] === R.id + ':' + f && tex3[slot]) return tex3[slot];
+  const g = R.grid3, NYF = 2 * g.ny - 1, A = R.rho[f], S = R.spin[f];
+  let t3 = tex3[slot];
+  if (!t3 || t3.image.width !== g.nx || t3.image.height !== NYF || t3.image.depth !== g.nz) {
+    if (t3) t3.dispose(); t3 = new THREE.DataTexture3D(new Uint8Array(g.nx * NYF * g.nz * 4), g.nx, NYF, g.nz);
+    t3.format = THREE.RGBAFormat; t3.type = THREE.UnsignedByteType; t3.minFilter = t3.magFilter = THREE.LinearFilter; t3.unpackAlignment = 1; tex3[slot] = t3;
+  }
+  const D = t3.image.data;
+  for (let iz = 0; iz < g.nz; iz++) { const sz = A.flip ? g.nz - 1 - iz : iz;
+    for (let j = 0; j < NYF; j++) { const sy = Math.abs(j - (g.ny - 1)), src = (sz * g.ny + sy) * g.nx, dst = (iz * NYF + j) * g.nx;
+      for (let ix = 0; ix < g.nx; ix++) { const p = (dst + ix) * 4; D[p] = A.a[src + ix]; D[p + 1] = S.a[src + ix]; D[p + 3] = 255; } } }
+  t3.needsUpdate = true; tex3Key[slot] = R.id + ':' + f; return t3;
+}
 function glTexture() { // pack every frame (density, spin) into one atlas texture
+  if (R.grid3) { if (mesh3) { const g = R.grid3, U = mesh3.material.uniforms; U.uH.value.set(g.z1, g.x1, g.x1); mesh3.geometry.dispose(); mesh3.geometry = new THREE.BoxGeometry(2 * g.z1, 2 * g.x1, 2 * g.x1); tex3Key = [null, null]; } return; }
   const g = R.grid, cols = Math.max(1, Math.floor(4096 / g.nr)), C = Math.min(cols, g.nf), Rw = Math.ceil(g.nf / C);
   const W = g.nr * C, H = g.nz * Rw, data = new Uint8Array(W * H * 4);
   for (let f = 0; f < g.nf; f++) { const c0 = (f % C) * g.nr, r0 = Math.floor(f / C) * g.nz;
@@ -277,9 +344,13 @@ function glTexture() { // pack every frame (density, spin) into one atlas textur
 }
 function drawGL() {
   const rect = view.getBoundingClientRect(); renderer.setSize(rect.width, rect.height, false); camera.aspect = rect.width / rect.height; camera.updateProjectionMatrix();
-  const cx = centerZ(), dist = camera.aspect < 1.5 ? 10.5 : 9.5; camera.position.set(cx + dist * Math.sin(rotY) * Math.cos(rotX), dist * Math.sin(rotX), dist * Math.cos(rotY) * Math.cos(rotX)); camera.lookAt(cx, 0, 0);
-  R.atoms.forEach((a, k) => { if (nuclei[k]) { const sc = (a.dot || 4) / 4; nuclei[k].visible = true; nuclei[k].scale.set(sc, sc, sc); nuclei[k].position.set(atomZ(a), 0, 0); } }); nuclei.slice(R.atoms.length).forEach(m => m.visible = false);
-  const U = mesh.material.uniforms, f = Math.min(nF() - 1.000001, Math.max(0, u)), i0 = Math.floor(f);
+  const zz = R.atoms.map(a => atomPos(a)[2]), cx = centerZ(), dist = Math.max(camera.aspect < 1.5 ? 10.5 : 9.5, ((Math.max(...zz) - Math.min(...zz)) / 2 + 2) * (camera.aspect < 1.5 ? 3.1 : 2.5)); camera.position.set(cx + dist * Math.sin(rotY) * Math.cos(rotX), dist * Math.sin(rotX), dist * Math.cos(rotY) * Math.cos(rotX)); camera.lookAt(cx, 0, 0);
+  R.atoms.forEach((a, k) => { if (nuclei[k]) { const sc = (a.dot || 4) / 4; nuclei[k].visible = true; nuclei[k].scale.set(sc, sc, sc); const P = atomPos(a); nuclei[k].position.set(P[2], P[0], P[1]); } }); nuclei.slice(R.atoms.length).forEach(m => m.visible = false);
+  const f = Math.min(nF() - 1.000001, Math.max(0, u)), i0 = Math.floor(f);
+  mesh.visible = !R.grid3; if (mesh3) mesh3.visible = !!R.grid3;
+  if (R.grid3) { const U3 = mesh3.material.uniforms; U3.uA.value = vol3(0, i0); U3.uB.value = vol3(1, i0 + 1); U3.uT.value = f - i0; U3.uSpin.value = showSpin ? 1 : 0;
+    mesh3.updateMatrixWorld(); U3.uCam.value.copy(camera.position); mesh3.worldToLocal(U3.uCam.value); renderer.render(scene, camera); return; }
+  const U = mesh.material.uniforms;
   U.uF0.value = i0; U.uF1.value = i0 + 1; U.uT.value = f - i0; U.uSpin.value = showSpin ? 1 : 0;
   mesh.updateMatrixWorld(); U.uCam.value.copy(camera.position); mesh.worldToLocal(U.uCam.value); // box vertices are in Angstrom, so local = Angstrom
   renderer.render(scene, camera);
@@ -303,7 +374,7 @@ function buildChart() {
   const pts = F.map(f => `${X(f.x).toFixed(1)},${Y(f.dE).toFixed(1)}`);
   mk('path', { class: 'area', d: `M${X(xs[0])},${y1}L${pts.join('L')}L${X(xs[xs.length - 1])},${y1}Z` });
   mk('path', { class: 'curve', d: 'M' + pts.join('L') });
-  const top = F.reduce((a, b) => b.dE > a.dE ? b : a);
+  const top = R.tsAt != null ? F.reduce((a, b) => Math.abs(b.x - R.tsAt) < Math.abs(a.x - R.tsAt) ? b : a) : F.reduce((a, b) => b.dE > a.dE ? b : a);
   mk('line', { x1: X(top.x), x2: X(top.x), y1: Y(0), y2: Y(top.dE), class: 'ax', 'stroke-dasharray': '3 3' });
   if (Y(0) - Y(top.dE) > 44) {
     mk('text', { x: X(top.x) + 8, y: Y(top.dE / 2) + 4, class: 'lab' }).textContent = `barrier ${top.dE.toFixed(2)} eV`;
@@ -311,10 +382,11 @@ function buildChart() {
   } else {
     const ttx = Math.max(x0 + 70, X(top.x));
     mk('text', { x: ttx, y: Y(top.dE) - (VW < 600 ? 30 : 24), 'text-anchor': 'middle', class: 'lab' }).textContent = 'transition state';
-    mk('text', { x: ttx, y: Y(top.dE) - 8, 'text-anchor': 'middle' }).textContent = `barrier only ${top.dE.toFixed(2)} eV`;
+    mk('text', { x: ttx, y: Y(top.dE) - 8, 'text-anchor': 'middle' }).textContent = R.barrierText ? R.barrierText.replace('{}', top.dE.toFixed(2)) : `barrier only ${top.dE.toFixed(2)} eV`;
   }
   const end = F[F.length - 1];
-  if (Math.abs(end.dE) > 0.05) {   // reaction energy: arrow from the starting level down (or up) to the products
+  (R.marks || []).forEach(m => { mk('circle', { cx: X(m.x), cy: Y(m.dE), r: 3, fill: 'var(--ink-2)' }); mk('text', { x: X(m.x), y: Y(m.dE) + 18, 'text-anchor': 'middle' }).textContent = m.label; });
+  if (R.release !== false && Math.abs(end.dE) > 0.05) {   // reaction energy: arrow from the starting level down (or up) to the products
     const ax = X(end.x) - 18;
     mk('line', { x1: X(top.x), x2: ax + 6, y1: Y(0), y2: Y(0), class: 'ax', 'stroke-dasharray': '3 3' });
     mk('line', { x1: ax, x2: ax, y1: Y(0), y2: Y(end.dE) + (end.dE < 0 ? -6 : 6), class: 'ax' });
@@ -536,8 +608,10 @@ function updatePanel() {
       const inZ = E >= chartMap.Z0; zmark.style.display = inZ ? '' : 'none'; if (inZ) { zmark.setAttribute('cx', chartMap.Zm); zmark.setAttribute('cy', chartMap.YZ(E)); } }
     return;
   }
-  document.getElementById('bonds').innerHTML = R.bonds.map(b => { const o = at(b.key), dkey = b.dist ? at(b.dist) : null;
-    return `<div class="r"><span>${b.label}</span><span class="bar"><i style="width:${Math.max(0, Math.min(1, o)) * 100}%"></i></span><span>${o.toFixed(2)}${dkey != null ? ` · ${dkey.toFixed(2)} Å` : ''}</span></div>`; }).join('');
+  document.getElementById('bonds').innerHTML = R.bonds.filter(b => b.key).map(b => { const o = at(b.key), dkey = b.dist ? at(b.dist) : null;
+    return `<div class="r"><span>${b.label}</span><span class="bar"><i style="width:${Math.max(0, Math.min(1, o)) * 100}%"></i></span><span>${o.toFixed(2)}${dkey != null ? ` · ${dkey.toFixed(2)} Å` : ''}</span></div>`; }).join('') +
+    (R.charges ? `<div class="r" style="margin-top:4px"><span style="color:var(--ink-3)">charge</span><span></span><span></span></div>` + R.charges.map(c => { const q = at(c.key);
+      return `<div class="r"><span>${c.label}</span><span class="bar"><i style="width:${Math.min(1, Math.abs(q)) * 100}%;background:var(--spin)"></i></span><span>${q < 0 ? '−' : '+'}${Math.abs(q).toFixed(2)}</span></div>`; }).join('') : '');
   const e = at('dE'); document.getElementById('tlabel').textContent = `${e >= 0 ? '+' : ''}${e.toFixed(3)} eV`;
   if (chartMap) { marker.setAttribute('cx', chartMap.X(at('x'))); marker.setAttribute('cy', chartMap.Y(e)); }
 }
@@ -571,11 +645,11 @@ function setMode(m) {
 function renderLegend() {
   if (isNuc()) { document.getElementById('legend').innerHTML = `<span><i style="background:#ef5a43"></i>proton</span><span><i style="background:#9db4cc"></i>neutron</span><span><i style="background:none;border:1px solid var(--ink-2)"></i>faint outline: the usual fate</span><span>〰 gamma ray</span>`; return; }
   document.getElementById('legend').innerHTML = `<span><i style="background:linear-gradient(90deg,#000004,#bc3754,#fcffa4)"></i>electron density (log scale)</span>` +
-    (showSpin ? `<span><i style="background:var(--spin)"></i>unpaired electron (spin up)</span><span><i style="background:var(--spin-neg)"></i>slight opposite spin</span>` : '') +
+    (showSpin ? (R.overlay ? `<span><i style="background:var(--spin)"></i>${R.overlay.legend}</span>` : `<span><i style="background:var(--spin)"></i>unpaired electron (spin up)</span><span><i style="background:var(--spin-neg)"></i>slight opposite spin</span>`) : '') +
     `<span><i style="background:var(--bond);border-radius:2px;height:4px;width:16px;vertical-align:3px"></i>bond (thicker = stronger)</span>`;
 }
 function loadReaction(i) {
-  stop(); R = decode(RX.reactions[i]); u = 0; R.tsX = R.frames.reduce((a, b) => b.dE > a.dE ? b : a).x;
+  stop(); R = decode(RX.reactions[i]); u = 0; R.tsX = R.tsAt != null ? R.tsAt : R.frames.reduce((a, b) => b.dE > a.dE ? b : a).x;
   document.querySelectorAll('#picker button').forEach((b, k) => b.setAttribute('aria-pressed', k === i));
   document.getElementById('eq').innerHTML = R.equationHTML; document.getElementById('eqsub').textContent = R.summary;
   document.getElementById('steps').innerHTML = R.phases.map(p => `<button data-t="${esc(p.title)}" data-x="${p.jump}">${esc(p.title)}</button>`).join('');
@@ -585,7 +659,10 @@ function loadReaction(i) {
   const N = isNuc();
   nuc.hidden = !N; document.getElementById('tempBox').hidden = !N; document.getElementById('oddsCard').hidden = !N;
   ['mSlice', 'spinBtn'].forEach(id => document.getElementById(id).hidden = N); document.getElementById('mElek').hidden = N || !haveGL;
-  document.getElementById('bondsH').textContent = N ? 'State' : 'Bonds';
+  document.getElementById('bondsH').textContent = N ? 'State' : R.charges ? 'Bonds and charges' : 'Bonds';
+  const sb = document.getElementById('spinBtn'); sb.textContent = R.overlay ? R.overlay.btn : 'Unpaired electron'; sb.title = R.overlay ? R.overlay.legend : 'Show where the unpaired electron is';
+  if (R.grid3 && !mesh3) document.getElementById('mElek').hidden = true;
+  if (R.grid3 && !mesh3 && mode === 'elek') mode = 'slice';
   document.getElementById('bondsNote').textContent = N ? 'Energies are measured relative to ordinary carbon-12.' : 'Bond order counts shared electron pairs: 1 is a full single bond, ½ a half bond.';
   if (N) { cv.hidden = gl.hidden = true; document.getElementById('tag').textContent = 'NUCLEI · A SKETCH; ENERGIES ARE MEASURED'; }
   else { cv.hidden = mode !== 'slice'; gl.hidden = mode === 'slice'; document.getElementById('tag').textContent = mode === 'slice' ? 'ELECTRON DENSITY · SLICE THROUGH THE ATOMS' : 'ELEKTRONIUM · DRAG TO TURN'; }
@@ -605,8 +682,11 @@ new ResizeObserver(() => R && draw()).observe(view);
 new ResizeObserver(() => { if (R && (svg.clientWidth < 600 ? 480 : 800) !== chartVW) { buildChain(); lastPhase = null; updatePanel(); } }).observe(svg);
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => R && draw());
 const fromHash = RX.reactions.findIndex(r => r.id && '#' + r.id === location.hash);
-loadReaction(Math.max(0, fromHash));
+Promise.all(RX.reactions.filter(r => r.grid3).map(r => prepare3D(r).catch(() => { r.broken = true; }))).then(() => {
+  RX.reactions.forEach((r, i) => { if (r.broken) picker.querySelectorAll('button')[i].disabled = true; });
+  loadReaction(Math.max(0, fromHash && !(RX.reactions[fromHash] || {}).broken ? fromHash : 0));
+  if (!reduce) setTimeout(play, 600);
+});
 addEventListener('hashchange', () => { const k = RX.reactions.findIndex(r => '#' + r.id === location.hash); if (k >= 0 && RX.reactions[k] !== R) loadReaction(k); });
-if (!reduce) setTimeout(play, 600);
 })();
 </script>

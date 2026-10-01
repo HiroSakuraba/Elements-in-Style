@@ -15,8 +15,8 @@ from pyscf import gto, scf, mp, cc, lib, dft
 from pyscf.dft import numint
 
 lib.num_threads(2)
-BASIS, FROZEN, EV, BOHR = 'aug-cc-pvdz', 11, 27.211386, 0.529177210903
-CK = 'sn2_ckpt'; os.makedirs(CK, exist_ok=True)
+BASIS, FROZEN, EV, BOHR = os.environ.get('SN2_BASIS', 'aug-cc-pvdz'), 11, 27.211386, 0.529177210903
+CK = os.environ.get('SN2_CK', 'sn2_ckpt'); os.makedirs(CK, exist_ok=True)
 t0 = time.time()
 log = lambda *a: print(*a, f'({time.time() - t0:.0f}s)', flush=True)
 
@@ -79,7 +79,7 @@ else:
     asym = {'r_CCl': vm[0], 'r_CH': vm[1], 'th': float(np.degrees(vm[2])), 'E_inf': E_m + E_cl}
     json.dump(asym, open(f'{CK}/asym.json', 'w'))
 E_inf = asym['E_inf']
-log(f"CH3Cl: C-Cl {asym['r_CCl']:.4f} A, C-H {asym['r_CH']:.4f} A, H-C-Cl {180 - asym['th']:.2f} deg")
+log(f"CH3Cl: C-Cl {asym['r_CCl']:.4f} A, C-H {asym['r_CH']:.4f} A, H-C-Cl {asym['th']:.2f} deg")
 
 # --- 3D grid (y >= 0 half) ---
 NZ, NX, NY = 105, 41, 21
@@ -120,6 +120,7 @@ def analyse(mol, mf, mycc):
 
 
 XS = [-4.2, -3.8, -3.4, -3.0, -2.6, -2.3, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0]
+if os.environ.get('SN2_TEST'): XS = [-1.4, 0.0]
 scale = np.array([0.45, 1.8, 1.0])          # ~sqrt(force constants), so BFGS starts with a sensible step
 v_prev = np.array([asym['r_CCl'] + asym['r_CCl'] + 4.2, asym['r_CH'], np.radians(asym['th'])]); us = []
 frames = []
@@ -142,7 +143,8 @@ for k, x in enumerate(XS):
     frames.append({**fr, 'rho': rho, 'orb': orb}); us.append(v[0]); v_prev = v
     log(f"x={x:+.2f} r1={r1:.3f} r2={r2:.3f} CH={v[1]:.3f} th={np.degrees(v[2]):.1f} dE={fr['dE']:+.4f} eV bo={bo1:.2f}/{bo2:.2f} q={q[0]:+.2f}/{q[2]:+.2f}")
 
-np.savez_compressed('sn2_path.npz', zs=zs, xs=xs, ys=ys, rho=np.stack([f['rho'] for f in frames]), orb=np.stack([f['orb'] for f in frames]))
+OUT = 'sn2_test' if os.environ.get('SN2_TEST') else 'sn2'
+np.savez_compressed(f'{OUT}_path.npz', zs=zs, xs=xs, ys=ys, rho=np.stack([f['rho'] for f in frames]), orb=np.stack([f['orb'] for f in frames]))
 json.dump({'reaction': 'Cl- + CH3Cl -> ClCH3 + Cl-', 'method': 'CCSD(T)/aug-cc-pVDZ energies and CCSD densities at MP2/aug-cc-pVDZ relaxed geometries (PySCF)',
-           'asym': asym, 'frames': [{k2: v2 for k2, v2 in f.items() if k2 not in ('rho', 'orb')} for f in frames]}, open('sn2_path.json', 'w'), indent=1)
+           'asym': asym, 'frames': [{k2: v2 for k2, v2 in f.items() if k2 not in ('rho', 'orb')} for f in frames]}, open(f'{OUT}_path.json', 'w'), indent=1)
 log('done; complex', min(f['dE'] for f in frames), 'barrier', frames[-1]['dE'])

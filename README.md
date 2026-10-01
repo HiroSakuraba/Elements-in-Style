@@ -47,6 +47,7 @@ A second page, `reactions.html` (linked from the menu at the top of every page),
 - **H + H₂ → H₂ + H**, the simplest reaction there is: a hydrogen atom swaps partners with a hydrogen molecule. The barrier is symmetric and the products are the same kind of thing as the reactants.
 - **F + H₂ → HF + H**, where fluorine strips a hydrogen off the molecule. The barrier is tiny and early, and about 1.4 eV is released, mostly as vibration of the new HF (the basis of the HF chemical laser).
 
+- **Cl⁻ + CH₃Cl → ClCH₃ + Cl⁻**, the textbook SN2 reaction. The chloride attacks the carbon from behind, the old chlorine leaves, and the hydrogens flip like an umbrella (Walden inversion). This one uses a full 3D density grid. The slice runs through both chlorines, the carbon and one hydrogen, the green overlay shows the electron pair that moves, and charges are shown alongside the bonds. The energy shows the gas-phase double well: ion–dipole complex, central barrier, mirror complex.
 - **3 ⁴He → ¹²C through the Hoyle state** (under *Nuclear*), the way stars make carbon. Two helium nuclei form beryllium-8, which almost always falls apart. Rarely a third arrives in time and lands on the Hoyle state at 7.654 MeV, and about 4 in 10,000 of those settle into carbon by giving off two gamma rays. It comes with a carbon-12 energy-level diagram, a star-temperature slider (using the standard narrow-resonance rate, ∝ T⁻³ e^(−4.40/T₉)), and a "try the odds" counter. The energies and odds are measured values. The pictures of the nuclei are sketches, with the Hoyle state drawn as the loose "bent arm" from lattice calculations (Epelbaum et al., 2011–2012). Carbon's origin card on the Elements page links here.
 
 Each chemical reaction has:
@@ -61,6 +62,7 @@ Both paths come from coupled-cluster theory in [PySCF](https://pyscf.org/). At e
 
 - **H + H₂** (UCCSD/cc-pVTZ): the barrier is 0.446 eV, against 0.417 eV from the best published surface (Mielke, Garrett and Peterson, 2002). At the top, each bond is almost exactly half a bond (0.46), with the atoms 0.93 Å apart.
 - **F + H₂** (UCCSD(T) energies and UCCSD densities, aug-cc-pVTZ on F and cc-pVTZ on H): the energy released is 1.365 eV, against 1.37 eV from measured bond energies. The barrier is 0.083 eV, against 0.072 eV for the collinear barrier of Cardoen, Simons and Gdanitz (2006), and it sits at their geometry: F–H 1.56 Å and H–H 0.764 Å, against 1.57 and 0.763 Å.
+- **Cl⁻ + CH₃Cl** (MP2/aug-cc-pVDZ relaxed geometries, CCSD(T) energies, CCSD densities): the complex is at −0.487 eV and the central barrier at +0.026 eV, against −0.458 and +0.090 eV from the focal-point values of Gonzales et al. (2005). The small basis makes the well too deep and the barrier too low, but the climb from the complex to the top, 0.513 eV against 0.548 eV, is close. The C–Cl distance at the top is 2.313 Å, against 2.302 Å.
 
 ## How the orbitals are computed
 
@@ -111,6 +113,7 @@ cd reactions
 pip install pyscf
 python3 h3.py                 # H + H2 reaction path and densities (about 7 min on 2 cores)
 python3 fh2.py                # F + H2 reaction path and densities (about 65 min on 2 cores; resumes if interrupted)
+python3 sn2.py                # Cl- + CH3Cl SN2 path and 3D densities (about 35 min on 2 cores; resumes if interrupted)
 python3 build_reactions.py    # template.html + paths -> ../../reactions.html
 ```
 
@@ -127,7 +130,7 @@ tools/origin.py         cosmic-origin shares, reaction text and notes for all 11
 tools/allotropes.py     phase fixes and allotropes (graphite/diamond, white/red/black phosphorus, …)
 tools/intros.py         one-line introductions for all 118 elements
 tools/build.py
-tools/reactions/        reaction calculations (h3.py, fh2.py), page source and build_reactions.py
+tools/reactions/        reaction calculations (h3.py, fh2.py, sn2.py), page source and build_reactions.py
 .nojekyll               tells GitHub Pages to serve files as-is
 ```
 

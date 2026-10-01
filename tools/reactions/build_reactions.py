@@ -3,7 +3,7 @@
 Input: h3_path.* from h3.py and fh2_path.* from fh2.py. Densities are stored per frame as bytes:
 nz*nr bytes of log10 electron density (0-255), then nz*nr bytes of signed spin density (128 = none).
 """
-import base64, json, os
+import base64, gzip, json, os
 import numpy as np
 
 HARTREE_EV = 27.211386
@@ -173,7 +173,77 @@ def hoyle():
     }
 
 
-rx = {'reactions': [h3()] + ([fh2()] if os.path.exists('fh2_path.json') else []) + [hoyle()]}
+def pack3d(npz, cap=2.0):
+    """3D grid [frame, z, y>=0, x]: log density bytes, then log pair-density bytes of the reacting orbital (128 = none). Gzipped."""
+    rho, orb = npz['rho'].astype(np.float32), npz['orb'].astype(np.float32)
+    lo, hi = -3.6, float(np.log10(min(rho.max(), cap)))
+    rb = np.clip((np.log10(np.maximum(rho, 1e-12)) - lo) / (hi - lo), 0, 1)
+    top = float(np.log10(orb.max())); floor = top - 2.4
+    ob = 128 + np.clip((np.log10(np.maximum(orb, 1e-12)) - floor) / (top - floor), 0, 1) * 127
+    out = bytearray()
+    for f in range(rho.shape[0]):
+        out += np.round(rb[f] * 255).astype(np.uint8).tobytes(); out += np.round(ob[f]).astype(np.uint8).tobytes()
+    zs, xs, ys = npz['zs'], npz['xs'], npz['ys']
+    return {'b64': base64.b64encode(gzip.compress(bytes(out), 9)).decode(), 'nz': len(zs), 'ny': len(ys), 'nx': len(xs), 'nh': rho.shape[0],
+            'z0': float(zs[0]), 'z1': float(zs[-1]), 'x0': float(xs[0]), 'x1': float(xs[-1])}
+
+
+def sn2(prefix='sn2'):
+    npz = np.load(f'{prefix}_path.npz'); meta = json.load(open(f'{prefix}_path.json'))
+    half = meta['frames']; nh = len(half)
+    mirror = lambda f: {'x': -f['s'], 'dE': f['dE'], 'r1': f['r2'], 'r2': f['r1'], 'rch': f['rch'], 'th': round(180 - f['th'], 3),
+                        'bo1': f['bo2'], 'bo2': f['bo1'], 'qa': f['qb'], 'qb': f['qa']}
+    first = [{'x': f['s'], 'dE': f['dE'], 'r1': f['r1'], 'r2': f['r2'], 'rch': f['rch'], 'th': f['th'], 'bo1': f['bo1'], 'bo2': f['bo2'], 'qa': f['qa'], 'qb': f['qb']} for f in half]
+    frames = first + [mirror(half[k]) for k in range(nh - 2, -1, -1)]
+    ts = half[-1]; cx = min(half, key=lambda f: f['dE']); A = meta['asym']
+    return {
+        'name': 'Cl⁻ + CH₃Cl', 'id': 'sn2', 'group': 'Chemical',
+        'equationHTML': 'Cl<sub>a</sub><sup>−</sup> + CH<sub>3</sub>–Cl<sub>b</sub> → Cl<sub>a</sub>–CH<sub>3</sub> + Cl<sub>b</sub><sup>−</sup>',
+        'summary': 'The textbook SN2 reaction: a chloride ion attacks carbon from the back, the old chlorine leaves from the front, and the three hydrogens flip over like an umbrella in the wind.',
+        'grid3': pack3d(npz), 'frames': frames, 'tsAt': 0.0, 'release': False, 'barrierText': 'central barrier {} eV',
+        'marks': [{'x': cx['s'], 'dE': cx['dE'], 'label': 'complex'}, {'x': -cx['s'], 'dE': cx['dE'], 'label': 'complex'}],
+        'overlay': {'btn': 'Reacting pair', 'legend': 'the electron pair that moves (highest σ orbital)'},
+        'atoms': [{'label': 'Cl', 'sub': 'a', 'zKey': 'r1', 'sign': -1, 'dot': 6}, {'label': 'C', 'dot': 5}, {'label': 'Cl', 'sub': 'b', 'zKey': 'r2', 'sign': 1, 'dot': 6},
+                  {'label': 'H', 'h': 0, 'dot': 3}, {'label': 'H', 'h': 1, 'dot': 3}, {'label': 'H', 'h': 2, 'dot': 3}],
+        'bonds': [{'key': 'bo1', 'a': 1, 'b': 0, 'label': 'C–Cl<sub>a</sub>', 'dist': 'r1'}, {'key': 'bo2', 'a': 1, 'b': 2, 'label': 'C–Cl<sub>b</sub>', 'dist': 'r2'},
+                  {'fixed': 1, 'a': 1, 'b': 3}, {'fixed': 1, 'a': 1, 'b': 4}, {'fixed': 1, 'a': 1, 'b': 5}],
+        'charges': [{'key': 'qa', 'label': 'Cl<sub>a</sub>'}, {'key': 'qb', 'label': 'Cl<sub>b</sub>'}],
+        'ends': ['Cl⁻ + CH₃Cl', 'ClCH₃ + Cl⁻'], 'xLabel': 'reaction progress →',
+        'phases': [
+            {'from': -99, 'jump': frames[0]['x'], 'title': 'Chloride homes in',
+             'text': 'Cl<sub>a</sub><sup>−</sup> carries an extra electron. Chloromethane is lopsided too: its chlorine pulls electrons away from the carbon, leaving the carbon\'s back side, between the hydrogens, slightly positive. The ion is drawn straight at it.'},
+            {'from': -2.2, 'jump': cx['s'], 'title': 'A loose embrace',
+             'text': f'Before any bond changes, the ion settles against the back of the molecule: the ion–dipole complex, {abs(cx["dE"]):.2f} eV lower than where it started. In a gas, where nothing else gets in the way, this complex is real and has been measured.'},
+            {'from': -0.75, 'jump': 0.0, 'title': 'Backside attack',
+             'text': f'The top of the central barrier. Cl–C–Cl stands in a straight line with both C–Cl bonds stretched to {ts["r1"]:.2f} Å, each about half a bond, and the negative charge is shared equally between the two chlorines. The three hydrogens lie flat. The green pair (the reacting σ orbital) now spans both chlorines with a gap at the carbon.'},
+            {'from': 0.15, 'jump': 0.6, 'title': 'The umbrella flips',
+             'text': 'Past the top, the hydrogens keep going and fold the other way, like an umbrella turned inside out by the wind. This Walden inversion is why an SN2 reaction flips the handedness of a carbon that has four different groups on it.'},
+            {'from': 1.0, 'jump': frames[-1]['x'], 'title': 'Chloride leaves',
+             'text': 'Cl<sub>b</sub> drifts off as the new chloride ion, carrying the negative charge, through the mirror-image complex and back to the starting energy. Same molecules, swapped places, and the carbon is now inside out.'},
+        ],
+        'numbers': [
+            ['Complex (this calculation)', f'{cx["dE"]:+.3f} eV'],
+            ['Complex, best published', '−0.458 eV <span class="vt">ref</span>'],
+            ['Central barrier (calc.)', f'{ts["dE"]:+.3f} eV'],
+            ['Central barrier, best published', '+0.090 eV <span class="vt">ref</span>'],
+            ['Climb from the complex (calc.)', f'{ts["dE"] - cx["dE"]:.3f} eV'],
+            ['Climb from the complex, best published', '0.548 eV <span class="vt">ref</span>'],
+            ['C–Cl at the top (calc.)', f'{ts["r1"]:.3f} Å <span class="vt">ref 2.302</span>'],
+            ['C–Cl in CH₃Cl (calc.)', f'{A["r_CCl"]:.3f} Å'],
+            ['C–Cl in CH₃Cl (measured)', '1.78 Å'],
+            ['Same reaction in water', '≈ 1.15 eV barrier'],
+        ],
+        'method': ('<b>How this was computed.</b> At each step the C–Cl difference was fixed and everything else (the C–Cl sum, the C–H length and the umbrella angle) '
+                   'was relaxed with MP2. Then the energy was computed with coupled-cluster theory, CCSD(T), and the density with CCSD, all in the aug-cc-pVDZ basis (PySCF). '
+                   'The density is real 3D data, shown on the plane through both chlorines, the carbon and one hydrogen (the other two hydrogens are faded because they sit out of that plane). '
+                   'The reaction is its own mirror image, so the second half is the first half reflected. Charges come from dividing the CCSD density among the atoms (Becke partitioning). '
+                   'References: focal-point values of Gonzales and co-workers (2005). aug-cc-pVDZ is a small basis set, so the complex comes out a little too deep and the central barrier a little too low; the climb from the complex to the top, where those errors largely cancel, is within 0.04 eV. '
+                   '<b>Why water matters.</b> In water the same reaction has a barrier of about 1.15 eV (26 kcal/mol), because water molecules cling to the small chloride ion '
+                   'and must be partly stripped away first. The gas-phase double well and the solvent effect were a landmark of computational chemistry (Chandrasekhar, Smith and Jorgensen, 1985).'),
+    }
+
+
+rx = {'reactions': [h3()] + ([fh2()] if os.path.exists('fh2_path.json') else []) + ([sn2(os.environ.get('SN2_PREFIX', 'sn2'))] if os.path.exists(os.environ.get('SN2_PREFIX', 'sn2') + '_path.json') else []) + [hoyle()]}
 body = open('template.html').read().replace('__RX__', json.dumps(rx, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/'))
 head, rest = body.split('</style>', 1)
 doc = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
