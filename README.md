@@ -58,7 +58,7 @@ Each reaction has:
 Both paths come from coupled-cluster theory in [PySCF](https://pyscf.org/). At each step the atoms settle into their lowest-energy spacing, which traces the minimum-energy path.
 
 - **H + H₂** (UCCSD/cc-pVTZ): the barrier is 0.446 eV, against 0.417 eV from the best published surface (Mielke, Garrett and Peterson, 2002). At the top, each bond is almost exactly half a bond (0.46), with the atoms 0.93 Å apart.
-- **F + H₂** (UCCSD(T) energies and UCCSD densities, aug-cc-pVTZ on F and cc-pVTZ on H): the energy released is 1.365 eV, against 1.37 eV from measured bond energies. The collinear barrier is compared with the multireference value of Cardoen, Simons and Gdanitz (2006).
+- **F + H₂** (UCCSD(T) energies and UCCSD densities, aug-cc-pVTZ on F and cc-pVTZ on H): the energy released is 1.365 eV, against 1.37 eV from measured bond energies. The barrier is 0.083 eV, against 0.072 eV for the collinear barrier of Cardoen, Simons and Gdanitz (2006), and it sits at their geometry: F–H 1.56 Å and H–H 0.764 Å, against 1.57 and 0.763 Å.
 
 ## How the orbitals are computed
 
@@ -108,7 +108,7 @@ python3 build.py              # template.html + data -> ../index.html
 cd reactions
 pip install pyscf
 python3 h3.py                 # H + H2 reaction path and densities (about 7 min on 2 cores)
-python3 fh2.py                # F + H2 reaction path and densities (about 75 min on 2 cores)
+python3 fh2.py                # F + H2 reaction path and densities (about 65 min on 2 cores; resumes if interrupted)
 python3 build_reactions.py    # template.html + paths -> ../../reactions.html
 ```
 

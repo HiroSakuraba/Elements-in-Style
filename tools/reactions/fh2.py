@@ -6,7 +6,7 @@ pi occupations in C-inf-v symmetry. For each asymmetric stretch s = r2 - r1 the
 sum u = r1 + r2 is relaxed with a parabola fit, which traces the minimum-energy path.
 Atoms: F at -r1, Ha at the origin, Hb at +r2.
 """
-import json, time
+import json, os, time
 import numpy as np
 from pyscf import gto, scf, cc, lib
 from pyscf.dft import numint
@@ -40,8 +40,13 @@ def golden(f, a, b, tol):
 
 # asymptotes (supermolecule with the third atom 15 A away, so basis and method are consistent)
 FAR = 15.0
-r_h2, E_inf = golden(lambda r: solve(FAR, r), 0.70, 0.79, 2e-3)
-r_hf, E_prod = golden(lambda r: solve(r, FAR), 0.88, 0.96, 2e-3)
+CK = 'fh2_ckpt'; os.makedirs(CK, exist_ok=True)   # checkpoints, so an interrupted run resumes where it stopped
+if os.path.exists(f'{CK}/asym.json'):
+    r_h2, E_inf, r_hf, E_prod = json.load(open(f'{CK}/asym.json'))
+else:
+    r_h2, E_inf = golden(lambda r: solve(FAR, r), 0.70, 0.79, 2e-3)
+    r_hf, E_prod = golden(lambda r: solve(r, FAR), 0.88, 0.96, 2e-3)
+    json.dump([r_h2, E_inf, r_hf, E_prod], open(f'{CK}/asym.json', 'w'))
 print(f'H2 r_eq {r_h2:.4f}  HF r_eq {r_hf:.4f}  reaction energy {(E_prod - E_inf) * HARTREE_EV:.4f} eV  ({time.time() - t0:.0f}s)', flush=True)
 
 NZ, NR = 176, 48
@@ -67,7 +72,11 @@ def snapshot():
 
 S = np.round(np.concatenate([np.arange(-2.8, -1.39, 0.2), np.arange(-1.3, 0.31, 0.1), np.arange(0.4, 2.61, 0.2)]), 3)
 frames, us = [], []
-for s in S:
+for k, s in enumerate(S):
+    ck = f'{CK}/frame_{k:02d}.npz'
+    if os.path.exists(ck):
+        z = np.load(ck); meta = json.loads(str(z['meta'])); us.append(meta.pop('u'))
+        frames.append({**meta, 'rho': z['rho'], 'spin': z['spin']}); continue
     E_of = lambda u: solve((u - s) / 2, (u + s) / 2)   # r1 = (u - s)/2, r2 = (u + s)/2
     if len(us) >= 2: ug = us[-1] + (us[-1] - us[-2]) / (S[len(us) - 1] - S[len(us) - 2]) * (s - S[len(us) - 1])
     elif us: ug = us[-1]
@@ -89,6 +98,7 @@ for s in S:
     r1, r2 = (u - s) / 2, (u + s) / 2
     frames.append({'s': float(s), 'r1': round(r1, 4), 'r2': round(r2, 4), 'dE': round((E - E_inf) * HARTREE_EV, 5),
                    'bo1': round(float(bo1), 3), 'bo2': round(float(bo2), 3), 'rho': rho, 'spin': spin})
+    np.savez(ck, rho=rho, spin=spin, meta=json.dumps({**{k2: v for k2, v in frames[-1].items() if k2 not in ('rho', 'spin')}, 'u': float(u)}))
     print(f's={s:+.2f} r1={r1:.3f} r2={r2:.3f} dE={(E - E_inf) * HARTREE_EV:+.4f} eV bo={bo1:.2f}/{bo2:.2f}  ({time.time() - t0:.0f}s)', flush=True)
 
 np.savez_compressed('fh2_path.npz', zs=zs, rs=rs, s=[f['s'] for f in frames], rho=np.stack([f['rho'] for f in frames]), spin=np.stack([f['spin'] for f in frames]))

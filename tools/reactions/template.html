@@ -273,7 +273,7 @@ let chartVW = 800, chartMap = null, marker = null, markerLab = null;
 function buildChart() {
   svg.innerHTML = '';
   const VW = svg.clientWidth && svg.clientWidth < 600 ? 480 : 800; svg.setAttribute('viewBox', `0 0 ${VW} 230`); chartVW = VW;
-  const F = R.frames, x0 = VW < 600 ? 66 : 52, x1 = VW - 16, y0 = 34, y1 = 190, xs = F.map(f => f.x), es = F.map(f => f.dE);
+  const F = R.frames, x0 = VW < 600 ? 80 : 56, x1 = VW - 16, y0 = 34, y1 = 190, xs = F.map(f => f.x), es = F.map(f => f.dE);
   const xmin = Math.min(...xs), xmax = Math.max(...xs), span = Math.max(...es, 0) - Math.min(...es, 0), emin = Math.min(0, ...es) - span * 0.06 - 0.01, emax = Math.max(0, ...es) + span * 0.22 + 0.02;
   const X = v => x0 + (v - xmin) / (xmax - xmin) * (x1 - x0), Y = e => y1 - (e - emin) / (emax - emin) * (y1 - y0);
   chartMap = { X, Y, x0, x1, xmin, xmax };
@@ -291,7 +291,7 @@ function buildChart() {
     mk('text', { x: X(top.x), y: Y(top.dE) - 10, 'text-anchor': 'middle', class: 'lab' }).textContent = 'transition state';
   } else {
     const ttx = Math.max(x0 + 70, X(top.x));
-    mk('text', { x: ttx, y: Y(top.dE) - 22, 'text-anchor': 'middle', class: 'lab' }).textContent = 'transition state';
+    mk('text', { x: ttx, y: Y(top.dE) - (VW < 600 ? 30 : 24), 'text-anchor': 'middle', class: 'lab' }).textContent = 'transition state';
     mk('text', { x: ttx, y: Y(top.dE) - 8, 'text-anchor': 'middle' }).textContent = `barrier only ${top.dE.toFixed(2)} eV`;
   }
   const end = F[F.length - 1];
@@ -300,7 +300,7 @@ function buildChart() {
     mk('line', { x1: X(top.x), x2: ax + 6, y1: Y(0), y2: Y(0), class: 'ax', 'stroke-dasharray': '3 3' });
     mk('line', { x1: ax, x2: ax, y1: Y(0), y2: Y(end.dE) + (end.dE < 0 ? -6 : 6), class: 'ax' });
     mk('path', { d: `M${ax - 5},${Y(end.dE) + (end.dE < 0 ? -9 : 9)}L${ax},${Y(end.dE)}L${ax + 5},${Y(end.dE) + (end.dE < 0 ? -9 : 9)}`, fill: 'none', class: 'ax' });
-    mk('text', { x: ax - 8, y: Y(end.dE / 2) + 4, 'text-anchor': 'end', class: 'lab' }).textContent = `${end.dE < 0 ? 'energy released' : 'energy absorbed'} ${Math.abs(end.dE).toFixed(2)} eV`;
+    mk('text', { x: ax - 8, y: end.dE < 0 ? Y(0) + 18 : Y(0) - 8, 'text-anchor': 'end', class: 'lab' }).textContent = `${VW < 600 ? '' : 'energy '}${end.dE < 0 ? 'released' : 'absorbed'} ${Math.abs(end.dE).toFixed(2)} eV`;
   }
   mk('text', { x: x0 + 4, y: y1 + 18, class: 'lab' }).textContent = R.ends[0];
   mk('text', { x: x1 - 4, y: y1 + 18, 'text-anchor': 'end', class: 'lab' }).textContent = R.ends[1];

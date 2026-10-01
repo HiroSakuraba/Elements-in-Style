@@ -101,7 +101,7 @@ def fh2():
         'numbers': [
             ['Barrier (this calculation)', f'{bar:.3f} eV'],
             ['Collinear barrier, best published', '0.072 eV <span class="vt">ref</span>'],
-            ['Energy released (calc.)', f'{abs(meta["dE_reaction"]):.2f} eV'],
+            ['Energy released (calc.)', f'{abs(meta["dE_reaction"]):.3f} eV'],
             ['From measured bond energies', '1.37 eV <span class="vt">ref</span>'],
             ['F–H distance at the top', f'{ts["r1"]:.2f} Å <span class="vt">ref 1.57</span>'],
             ['H–H distance at the top', f'{ts["r2"]:.3f} Å <span class="vt">ref 0.763</span>'],
