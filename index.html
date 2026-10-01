@@ -44,6 +44,10 @@
 html, body { background: var(--bg); color: var(--ink); }
 body { font: 15px/1.5 var(--f-body); margin: 0; padding-inline: 16px; padding-block: 18px 40px; }
 .wrap { max-width: 1480px; margin: 0 auto; }
+.sitenav { display: flex; gap: 4px; margin: 0 0 12px; font: 500 12px var(--f-data); letter-spacing: .1em; text-transform: uppercase; }
+.sitenav a { color: var(--ink-2); text-decoration: none; padding: 6px 12px; border-radius: 999px; border: 1px solid transparent; }
+.sitenav a:hover { border-color: var(--rule); color: var(--ink); }
+.sitenav a[aria-current="page"] { color: var(--accent); border-color: var(--accent); }
 header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--rule); padding-bottom: 14px; }
 h1 { font: 400 clamp(26px, 3.4vw, 40px)/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; margin: 0; text-wrap: balance; }
 .sub { color: var(--ink-2); margin: 6px 0 0; max-width: 62ch; font-size: 14px; }
@@ -254,6 +258,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 
 
 <div class="wrap">
+  <nav class="sitenav" aria-label="Site"><a href="./" aria-current="page">Elements</a><a href="reactions.html">Reactions</a></nav>
   <header class="top">
     <div>
       <h1>Elements in Style</h1>
