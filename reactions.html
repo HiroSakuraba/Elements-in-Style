@@ -196,7 +196,7 @@ function drawSlice() {
     ctx.strokeStyle = `rgba(252,255,164,${Math.min(0.9, 0.2 + o * 0.7)})`; ctx.lineWidth = (1 + o * 5) * dpr; ctx.setLineDash(o < 0.75 ? [6 * dpr, 5 * dpr] : []);
     ctx.beginPath(); ctx.moveTo(X(A1.z), Y0); ctx.lineTo(X(B1.z), Y0); ctx.stroke(); ctx.setLineDash([]); });
   atoms.forEach(a => {
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X(a.z), Y0, 4 * dpr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X(a.z), Y0, (a.dot || 4) * dpr, 0, Math.PI * 2); ctx.fill();
     say(a.label, X(a.z) - (a.sub ? 3 * dpr : 0), Y0 - 16 * dpr, 'center', 13); if (a.sub) say(a.sub, X(a.z) + 6 * dpr, Y0 - 12 * dpr, 'center', 9.5);
   });
   // scale bar: 1 Å
@@ -267,7 +267,7 @@ function glTexture() { // pack every frame (density, spin) into one atlas textur
 function drawGL() {
   const rect = view.getBoundingClientRect(); renderer.setSize(rect.width, rect.height, false); camera.aspect = rect.width / rect.height; camera.updateProjectionMatrix();
   const cx = centerZ(), dist = camera.aspect < 1.5 ? 10.5 : 9.5; camera.position.set(cx + dist * Math.sin(rotY) * Math.cos(rotX), dist * Math.sin(rotX), dist * Math.cos(rotY) * Math.cos(rotX)); camera.lookAt(cx, 0, 0);
-  R.atoms.forEach((a, k) => { if (nuclei[k]) { nuclei[k].visible = true; nuclei[k].position.set(atomZ(a), 0, 0); } }); nuclei.slice(R.atoms.length).forEach(m => m.visible = false);
+  R.atoms.forEach((a, k) => { if (nuclei[k]) { const sc = (a.dot || 4) / 4; nuclei[k].visible = true; nuclei[k].scale.set(sc, sc, sc); nuclei[k].position.set(atomZ(a), 0, 0); } }); nuclei.slice(R.atoms.length).forEach(m => m.visible = false);
   const U = mesh.material.uniforms, f = Math.min(nF() - 1.000001, Math.max(0, u)), i0 = Math.floor(f);
   U.uF0.value = i0; U.uF1.value = i0 + 1; U.uT.value = f - i0; U.uSpin.value = showSpin ? 1 : 0;
   mesh.updateMatrixWorld(); U.uCam.value.copy(camera.position); mesh.worldToLocal(U.uCam.value); // box vertices are in Angstrom, so local = Angstrom
@@ -282,20 +282,34 @@ function buildChart() {
   svg.innerHTML = '';
   const VW = svg.clientWidth && svg.clientWidth < 600 ? 480 : 800; svg.setAttribute('viewBox', `0 0 ${VW} 230`); chartVW = VW;
   const F = R.frames, x0 = VW < 600 ? 66 : 52, x1 = VW - 16, y0 = 34, y1 = 190, xs = F.map(f => f.x), es = F.map(f => f.dE);
-  const xmin = Math.min(...xs), xmax = Math.max(...xs), emin = Math.min(0, ...es) - 0.02, emax = Math.max(...es) * 1.18 + 0.02;
+  const xmin = Math.min(...xs), xmax = Math.max(...xs), span = Math.max(...es, 0) - Math.min(...es, 0), emin = Math.min(0, ...es) - span * 0.06 - 0.01, emax = Math.max(0, ...es) + span * 0.22 + 0.02;
   const X = v => x0 + (v - xmin) / (xmax - xmin) * (x1 - x0), Y = e => y1 - (e - emin) / (emax - emin) * (y1 - y0);
   chartMap = { X, Y, x0, x1, xmin, xmax };
   mk('text', { x: x0, y: 16, class: 'ht' }).textContent = 'Energy along the reaction';
-  const step = emax > 1 ? 0.5 : 0.1;
-  for (let e = 0; e <= emax; e += step) { mk('line', { x1: x0, x2: x1, y1: Y(e), y2: Y(e), class: 'grid' }); mk('text', { x: x0 - 8, y: Y(e) + 4, 'text-anchor': 'end' }).textContent = `${+e.toFixed(1)} eV`; }
+  const step = span > 1 ? 0.5 : span > 0.3 ? 0.1 : 0.05;
+  for (let e = Math.ceil(emin / step) * step; e <= emax + 1e-9; e += step) { mk('line', { x1: x0, x2: x1, y1: Y(e), y2: Y(e), class: 'grid' }); mk('text', { x: x0 - 8, y: Y(e) + 4, 'text-anchor': 'end' }).textContent = `${+(Math.abs(e) < 1e-9 ? 0 : e).toFixed(2)} eV`; }
   mk('line', { x1: x0, x2: x1, y1: y1, y2: y1, class: 'ax' });
   const pts = F.map(f => `${X(f.x).toFixed(1)},${Y(f.dE).toFixed(1)}`);
   mk('path', { class: 'area', d: `M${X(xs[0])},${y1}L${pts.join('L')}L${X(xs[xs.length - 1])},${y1}Z` });
   mk('path', { class: 'curve', d: 'M' + pts.join('L') });
   const top = F.reduce((a, b) => b.dE > a.dE ? b : a);
   mk('line', { x1: X(top.x), x2: X(top.x), y1: Y(0), y2: Y(top.dE), class: 'ax', 'stroke-dasharray': '3 3' });
-  mk('text', { x: X(top.x) + 8, y: Y(top.dE / 2) + 4, class: 'lab' }).textContent = `barrier ${top.dE.toFixed(2)} eV`;
-  mk('text', { x: X(top.x), y: Y(top.dE) - 10, 'text-anchor': 'middle', class: 'lab' }).textContent = 'transition state';
+  if (Y(0) - Y(top.dE) > 44) {
+    mk('text', { x: X(top.x) + 8, y: Y(top.dE / 2) + 4, class: 'lab' }).textContent = `barrier ${top.dE.toFixed(2)} eV`;
+    mk('text', { x: X(top.x), y: Y(top.dE) - 10, 'text-anchor': 'middle', class: 'lab' }).textContent = 'transition state';
+  } else {
+    const ttx = Math.max(x0 + 70, X(top.x));
+    mk('text', { x: ttx, y: Y(top.dE) - 22, 'text-anchor': 'middle', class: 'lab' }).textContent = 'transition state';
+    mk('text', { x: ttx, y: Y(top.dE) - 8, 'text-anchor': 'middle' }).textContent = `barrier only ${top.dE.toFixed(2)} eV`;
+  }
+  const end = F[F.length - 1];
+  if (Math.abs(end.dE) > 0.05) {   // reaction energy: arrow from the starting level down (or up) to the products
+    const ax = X(end.x) - 18;
+    mk('line', { x1: X(top.x), x2: ax + 6, y1: Y(0), y2: Y(0), class: 'ax', 'stroke-dasharray': '3 3' });
+    mk('line', { x1: ax, x2: ax, y1: Y(0), y2: Y(end.dE) + (end.dE < 0 ? -6 : 6), class: 'ax' });
+    mk('path', { d: `M${ax - 5},${Y(end.dE) + (end.dE < 0 ? -9 : 9)}L${ax},${Y(end.dE)}L${ax + 5},${Y(end.dE) + (end.dE < 0 ? -9 : 9)}`, fill: 'none', class: 'ax' });
+    mk('text', { x: ax - 8, y: Y(end.dE / 2) + 4, 'text-anchor': 'end', class: 'lab' }).textContent = `${end.dE < 0 ? 'energy released' : 'energy absorbed'} ${Math.abs(end.dE).toFixed(2)} eV`;
+  }
   mk('text', { x: x0 + 4, y: y1 + 18, class: 'lab' }).textContent = R.ends[0];
   mk('text', { x: x1 - 4, y: y1 + 18, 'text-anchor': 'end', class: 'lab' }).textContent = R.ends[1];
   mk('text', { x: (x0 + x1) / 2, y: y1 + 34, 'text-anchor': 'middle' }).textContent = R.xLabel;
@@ -330,7 +344,7 @@ function tick(now) {
   if (!playing) return;
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   // slower near the transition state, where the interesting things happen
-  const speed = (nF() - 1) / 9 * (0.45 + 0.55 * Math.min(1, Math.abs(at('x')) / 0.9));
+  const speed = (nF() - 1) / 9 * (0.45 + 0.55 * Math.min(1, Math.abs(at('x') - R.tsX) / 0.9));
   u += dt * speed;
   if (u >= nF() - 1) { u = nF() - 1; playing = false; document.getElementById('play').textContent = 'Replay'; document.getElementById('play').setAttribute('aria-pressed', 'false'); }
   draw(); if (playing) rafId = requestAnimationFrame(tick);
@@ -354,7 +368,7 @@ function renderLegend() {
     `<span><i style="background:var(--bond);border-radius:2px;height:4px;width:16px;vertical-align:3px"></i>bond (thicker = stronger)</span>`;
 }
 function loadReaction(i) {
-  stop(); R = decode(RX.reactions[i]); u = 0;
+  stop(); R = decode(RX.reactions[i]); u = 0; R.tsX = R.frames.reduce((a, b) => b.dE > a.dE ? b : a).x;
   document.querySelectorAll('#picker button').forEach((b, k) => b.setAttribute('aria-pressed', k === i));
   document.getElementById('eq').innerHTML = R.equationHTML; document.getElementById('eqsub').textContent = R.summary;
   document.getElementById('steps').innerHTML = R.phases.map(p => `<button data-t="${esc(p.title)}" data-x="${p.jump}">${esc(p.title)}</button>`).join('');

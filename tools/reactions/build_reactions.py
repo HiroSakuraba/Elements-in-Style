@@ -1,17 +1,17 @@
 """Package computed reaction paths into ../../reactions.html.
 
-Input: h3_path.npz + h3_path.json from h3.py. Densities are stored per frame as bytes:
+Input: h3_path.* from h3.py and fh2_path.* from fh2.py. Densities are stored per frame as bytes:
 nz*nr bytes of log10 electron density (0-255), then nz*nr bytes of signed spin density (128 = none).
 """
-import base64, json
+import base64, json, os
 import numpy as np
 
 HARTREE_EV = 27.211386
 
 
-def pack(npz):
+def pack(npz, cap=None):
     rho, spin = npz['rho'], npz['spin']               # [nf, nz, nr], atomic units (e/bohr^3)
-    lo, hi = -3.6, float(np.log10(rho.max()))
+    lo, hi = -3.6, float(np.log10(min(rho.max(), cap or 1e9)))   # cap: let a heavy atom's core saturate
     rb = np.clip((np.log10(np.maximum(rho, 1e-12)) - lo) / (hi - lo), 0, 1)
     # spin: signed log scale so the small opposite-spin patch on the middle atom still shows
     smax = float(np.abs(spin).max()); sfloor = -2.7
@@ -72,7 +72,52 @@ def h3():
     }
 
 
-rx = {'reactions': [h3()]}
+def fh2():
+    npz = np.load('fh2_path.npz'); meta = json.load(open('fh2_path.json'))
+    fr = meta['frames']; ts = max(fr, key=lambda f: f['dE']); bar = ts['dE']; dEr = fr[-1]['dE']
+    frames = [{'x': f['s'], 'dE': f['dE'], 'r1': f['r1'], 'r2': f['r2'], 'bo1': f['bo1'], 'bo2': f['bo2']} for f in fr]
+    x_ts = ts['s']
+    x_hand = next(f['s'] for f in fr if f['bo1'] > f['bo2'])          # first frame where the new bond is the stronger one
+    x_out = next(f['s'] for f in fr if f['dE'] < 0.75 * dEr)           # most of the energy already released
+    return {
+        'name': 'F + H₂',
+        'equationHTML': 'F + H<sub>a</sub>–H<sub>b</sub> → F–H<sub>a</sub> + H<sub>b</sub>',
+        'summary': 'Fluorine, the most reactive element, strips a hydrogen atom off a hydrogen molecule. A tiny barrier and a big payoff: the new H–F bond is far stronger than the H–H bond it replaces.',
+        'grid': pack(npz, cap=2.0), 'frames': frames,
+        'atoms': [{'label': 'F', 'zKey': 'r1', 'sign': -1, 'dot': 6}, {'label': 'H', 'sub': 'a'}, {'label': 'H', 'sub': 'b', 'zKey': 'r2', 'sign': 1}],
+        'bonds': [{'key': 'bo1', 'a': 0, 'b': 1, 'label': 'F–H<sub>a</sub>', 'dist': 'r1'}, {'key': 'bo2', 'a': 1, 'b': 2, 'label': 'H<sub>a</sub>–H<sub>b</sub>', 'dist': 'r2'}],
+        'ends': ['F + H₂', 'HF + H'],
+        'xLabel': 'reaction progress →',
+        'phases': [
+            {'from': -99, 'jump': fr[0]['s'], 'title': 'Fluorine closes in',
+             'text': 'Fluorine has nine electrons, one short of a full outer shell. The gap sits in a p orbital pointing straight at the molecule, so the unpaired electron (green) shows up as a lobe along the axis. The H<sub>a</sub>–H<sub>b</sub> pair on the right is a normal, full bond.'},
+            {'from': round(x_ts - 0.35, 3), 'jump': x_ts, 'title': 'An early, tiny barrier',
+             'text': f'The top of the hill comes early and is low: just {bar:.2f} eV. Fluorine is still {ts["r1"]:.2f} Å away, and the H–H bond has barely stretched ({ts["r2"]:.2f} Å, against 0.74 Å at rest). Fluorine pulls so hard that the reaction is almost downhill from the start.'},
+            {'from': round(x_hand - 0.05, 3), 'jump': x_hand, 'title': 'The electron hand-off',
+             'text': 'Now the H–H pair comes apart. One of its electrons pairs up with fluorine\'s missing one to make the new F–H bond, and the other stays behind on H<sub>b</sub>, which becomes the new unpaired electron (green moves to the right).'},
+            {'from': round(x_out, 3), 'jump': fr[-1]['s'], 'title': 'Energy released',
+             'text': f'Hydrogen fluoride and a free hydrogen atom, {abs(dEr):.2f} eV lower than where we started. Because the barrier came early, most of that energy ends up as vibration in the new H–F bond. That vibrating HF is what powers the hydrogen-fluoride chemical laser.'},
+        ],
+        'numbers': [
+            ['Barrier (this calculation)', f'{bar:.3f} eV'],
+            ['Collinear barrier, best published', '0.072 eV <span class="vt">ref</span>'],
+            ['Energy released (calc.)', f'{abs(meta["dE_reaction"]):.2f} eV'],
+            ['From measured bond energies', '1.37 eV <span class="vt">ref</span>'],
+            ['F–H distance at the top', f'{ts["r1"]:.2f} Å <span class="vt">ref 1.57</span>'],
+            ['H–H distance at the top', f'{ts["r2"]:.3f} Å <span class="vt">ref 0.763</span>'],
+            ['HF bond length (calc.)', f'{meta["r_eq_HF"]:.3f} Å'],
+            ['HF bond length (measured)', '0.917 Å'],
+        ],
+        'method': ('<b>How this was computed.</b> Energies from coupled-cluster theory with perturbative triples, UCCSD(T); densities from UCCSD. '
+                   'Basis sets: aug-cc-pVTZ on fluorine, cc-pVTZ on hydrogen (PySCF). The fluorine p-hole is held along the axis, which is the state that reacts. '
+                   'Each frame relaxes the atoms to the lowest-energy spacing, tracing the minimum-energy path. '
+                   'The reference barrier is the collinear value of Cardoen, Simons and Gdanitz (2006); the true lowest path is slightly bent and about 0.015 eV lower, '
+                   'and fluorine\'s spin-orbit coupling adds back roughly the same amount. '
+                   'This was the showcase reaction of the crossed-molecular-beam experiments that shared the 1986 Nobel Prize in Chemistry (Herschbach, Lee and Polanyi).'),
+    }
+
+
+rx = {'reactions': [h3()] + ([fh2()] if os.path.exists('fh2_path.json') else [])}
 body = open('template.html').read().replace('__RX__', json.dumps(rx, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/'))
 head, rest = body.split('</style>', 1)
 doc = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'

@@ -42,7 +42,12 @@ An interactive periodic table laid out as a spiral, with a pulsing electron-orbi
 
 ## Reactions
 
-A second page, `reactions.html` (linked from the menu at the top of every page), shows chemical reactions computed with real quantum chemistry. The first is the simplest reaction there is, **H + H₂ → H₂ + H**: a hydrogen atom swaps partners with a hydrogen molecule.
+A second page, `reactions.html` (linked from the menu at the top of every page), shows chemical reactions computed with real quantum chemistry:
+
+- **H + H₂ → H₂ + H**, the simplest reaction there is: a hydrogen atom swaps partners with a hydrogen molecule. The barrier is symmetric and the products are the same kind of thing as the reactants.
+- **F + H₂ → HF + H**, where fluorine strips a hydrogen off the molecule. The barrier is tiny and early, and about 1.4 eV is released, mostly as vibration of the new HF (the basis of the HF chemical laser).
+
+Each reaction has:
 
 - **2D slice** of the electron density through the three atoms, with the unpaired electron shown in green and a faint opposite spin in pink.
 - **Elektronium**: the same density as a glowing 3D cloud you can turn.
@@ -50,7 +55,10 @@ A second page, `reactions.html` (linked from the menu at the top of every page),
 - Bond strengths (bond orders) and bond lengths updating as one bond breaks and the other forms.
 - Step-by-step narration, from the atom's approach through the transition state to the swapped partners.
 
-The path was computed with coupled-cluster theory (UCCSD/cc-pVTZ in [PySCF](https://pyscf.org/)). At each step the atoms settle into their lowest-energy spacing, which traces the minimum-energy path. The computed barrier is 0.446 eV, against 0.417 eV from the best published surface (Mielke, Garrett and Peterson, 2002). At the top, each bond is almost exactly half a bond (0.46), with the atoms 0.93 Å apart.
+Both paths come from coupled-cluster theory in [PySCF](https://pyscf.org/). At each step the atoms settle into their lowest-energy spacing, which traces the minimum-energy path.
+
+- **H + H₂** (UCCSD/cc-pVTZ): the barrier is 0.446 eV, against 0.417 eV from the best published surface (Mielke, Garrett and Peterson, 2002). At the top, each bond is almost exactly half a bond (0.46), with the atoms 0.93 Å apart.
+- **F + H₂** (UCCSD(T) energies and UCCSD densities, aug-cc-pVTZ on F and cc-pVTZ on H): the energy released is 1.365 eV, against 1.37 eV from measured bond energies. The collinear barrier is compared with the multireference value of Cardoen, Simons and Gdanitz (2006).
 
 ## How the orbitals are computed
 
@@ -100,6 +108,7 @@ python3 build.py              # template.html + data -> ../index.html
 cd reactions
 pip install pyscf
 python3 h3.py                 # H + H2 reaction path and densities (about 7 min on 2 cores)
+python3 fh2.py                # F + H2 reaction path and densities (about 75 min on 2 cores)
 python3 build_reactions.py    # template.html + paths -> ../../reactions.html
 ```
 
@@ -116,7 +125,7 @@ tools/origin.py         cosmic-origin shares, reaction text and notes for all 11
 tools/allotropes.py     phase fixes and allotropes (graphite/diamond, white/red/black phosphorus, …)
 tools/intros.py         one-line introductions for all 118 elements
 tools/build.py
-tools/reactions/        reaction calculations (h3.py), page source and build_reactions.py
+tools/reactions/        reaction calculations (h3.py, fh2.py), page source and build_reactions.py
 .nojekyll               tells GitHub Pages to serve files as-is
 ```
 
