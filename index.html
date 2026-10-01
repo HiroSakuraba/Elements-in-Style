@@ -216,6 +216,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
 .tl .lbl { fill: var(--ink); font: 11px var(--f-data); }
 
 [hidden] { display: none !important; }
+.well canvas#photonCv { position: absolute; inset: 0; pointer-events: none; cursor: default; }
 .planebox { position: absolute; right: 12px; width: 36%; display: grid; gap: 3px; pointer-events: none; }
 .planebox canvas { width: 100%; aspect-ratio: 1; border: 1px solid #4a5868; border-radius: 8px; background: #05070a; image-rendering: auto; }
 .planebox span { font: 11px/1.3 var(--f-data); color: #cfe9ff; text-shadow: 0 1px 2px #000; text-align: right; }
@@ -274,6 +275,7 @@ p.desc { margin: 10px 0 0; color: var(--ink-2); font-size: 13.5px; }
         <canvas id="slice" aria-label="Probability density slices of the occupied orbitals"></canvas>
         <div class="planebox" id="planeBox" hidden><canvas id="planeCv" aria-label="Cross-section where the plane cuts the orbital"></canvas><span id="planeCap"></span></div>
         <canvas id="shellCv" aria-label="Electron shells as Elektronium layers, with the radial density" hidden></canvas>
+        <canvas id="photonCv" aria-hidden="true" hidden></canvas>
         <div class="ov t" id="ovTop">
           <span class="tag" id="wellTag">PROBABILITY DENSITY |ψ|²</span>
           <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
@@ -1331,7 +1333,7 @@ function buildElek(e) {
     uTexX: { value: texX }, uX: { value: 0 }, uXla: { value: ra.l }, uXlb: { value: rb.l }, uCa: { value: 1 }, uCb: { value: 0 }, uPhase: { value: 0 },
     uSa: { value: sa }, uSb: { value: sb }, uXmaxA: { value: xmaxA * 0.6 }, uXmaxB: { value: xmaxB * 0.6 }
   });
-  mat.userData.x = { from: xr.from, to: xr.to, dE: rb.E - ra.E, Rext };
+  mat.userData.x = { from: xr.from, to: xr.to, dE: rb.E - ra.E, Rext, rv: Math.min(1, Math.max(0.22, 1.3 * Math.max(ra.rbar, rb.rbar) / Rext)) };
   mat.blending = THREE.CustomBlending; mat.blendSrc = THREE.OneFactor; mat.blendDst = THREE.OneMinusSrcAlphaFactor;
   Object.assign(mat.userData, { dens: [dLo, dHi], layers: [lHi - 4.2, lHi] });
   elekMesh = new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.3, 2.3), mat);
@@ -1462,8 +1464,8 @@ function kickShells(pour) {
 const MEASURED = { 1: [121.6, 'Lyman-α'], 2: [58.4, ''], 3: [670.8, ''], 6: [165.7, ''], 7: [120.0, ''], 8: [130.2, ''], 10: [73.6, ''], 11: [589.0, 'sodium D line'],
   12: [285.2, ''], 13: [396.2, ''], 18: [104.8, ''], 19: [766.5, ''], 20: [422.7, ''], 26: [372.0, ''], 29: [324.8, ''], 30: [213.9, ''], 36: [123.6, ''],
   37: [780.0, ''], 38: [460.7, ''], 47: [328.1, ''], 48: [228.8, ''], 54: [147.0, ''], 55: [852.1, ''], 56: [553.5, ''], 79: [242.8, ''] };
-const X_NOTE = 'Excite follows the outermost electron as it absorbs light, jumps to a higher orbital, and falls back, emitting light. While it is between the two states, its Elektronium sloshes back and forth at the frequency of the light (here slowed down about a thousand trillion times); once it settles in either state, it holds still. The two states come from the same self-consistent atom calculation, and the model’s wavelength is shown next to the measured one where that line is well known. Distances here are to true scale.';
-let xStart = 0, xPhaseName = '';
+const X_NOTE = 'Excite follows the outermost electron as it absorbs light, jumps to a higher orbital, and falls back, emitting light. While it is between the two states, its Elektronium sloshes back and forth at the frequency of the light (here slowed down about a thousand trillion times); once it settles in either state, it holds still. The two states come from the same self-consistent atom calculation, and the model’s wavelength is shown next to the measured one where that line is well known. Distances here are to true scale. The light is drawn as a wave packet: it arrives from the left, its electric field pushes the cloud back and forth, and its energy passes into the atom. On the way back down the sloshing atom acts like a tiny antenna, sending out light brightest sideways and dark along the slosh axis. The ladder shows the energy gap the photon carries, and the strip shows the matching dark absorption line and bright emission line.';
+let xStart = 0, xPhaseName = '', xs = { th: 0, i: 0, f: 0, tt: 0 };
 function nmToRGB(nm) {
   if (nm < 380) return 'rgb(150,120,255)'; if (nm > 750) return 'rgb(150,20,10)';
   let r = 0, g = 0, b = 0;
@@ -1477,6 +1479,7 @@ function renderXInfo() {
   if (!elekState.excite || !elekMesh || mode !== 'elek') { box.hidden = true; return; }
   const x = elekMesh.material.userData.x, e = byZ(current), model = 1239.84 / x.dE, meas = MEASURED[e.Z];
   const nm = meas ? meas[0] : model, nu = 299792458 / (nm * 1e-9), slow = nu / 1.3;
+  x.nm = nm;
   box.hidden = false;
   const ex = Math.floor(Math.log10(slow)), slowTxt = `${Math.round(slow / Math.pow(10, ex))} × 10${sup(ex)}`;
   box.innerHTML = `<div><b>${x.from} → ${x.to}</b> <span class="sw" style="background:${nmToRGB(nm)}"></span>${meas ? `measured ${meas[0]} nm${meas[1] ? ` (${meas[1]})` : ''} · model ≈ ${Math.round(model)} nm ${vt('calc')}` : `model ≈ ${Math.round(model)} nm ${vt('calc')}`} · ${bandOf(nm)}</div>
@@ -1488,11 +1491,115 @@ function xUpdate(now) {
   let acc = 0, th = 0, name = '';
   for (let i = 0; i < X_CYCLE.length; i++) {
     const [dur, nm] = X_CYCLE[i];
-    if (tt < acc + dur) { const f = (tt - acc) / dur, ease = 0.5 - 0.5 * Math.cos(Math.PI * f); th = i === 0 || i === 4 ? 0 : i === 1 ? ease * Math.PI : i === 2 ? Math.PI : (1 - ease) * Math.PI; name = nm; break; }
+    if (tt < acc + dur) { const f = (tt - acc) / dur, ease = 0.5 - 0.5 * Math.cos(Math.PI * f); th = i === 0 || i === 4 ? 0 : i === 1 ? ease * Math.PI : i === 2 ? Math.PI : (1 - ease) * Math.PI; name = nm; xs = { th, i, f, tt }; break; }
     acc += dur;
   }
   u.uCa.value = Math.cos(th / 2); u.uCb.value = Math.sin(th / 2); u.uPhase.value = (now - xStart) / 1000 * 2 * Math.PI * 1.3;
   if (name !== xPhaseName) { xPhaseName = name; const el = document.getElementById('xPhase'); if (el) el.textContent = name; }
+}
+
+/* ---------- photons: the light wave that comes in, and the light the atom gives out ---------- */
+const photonCv = document.getElementById('photonCv'), pctx = photonCv.getContext('2d');
+const X_PERIOD = 1 / 1.3, X_EMIT0 = X_CYCLE[0][0] + X_CYCLE[1][0] + X_CYCLE[2][0], X_TOTAL = X_CYCLE.reduce((s, c) => s + c[0], 0);
+const smooth = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+function lightColor(nm) { return nm < 380 ? 'rgb(176,150,255)' : nm > 750 ? 'rgb(220,70,50)' : nmToRGB(nm); }
+function drawPhotons(now) {
+  const show = mode === 'elek' && elekState.excite && elekMesh && elekMesh.material.userData.x;
+  photonCv.hidden = !show; if (!show) return;
+  const rect = well.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2), W = Math.round(rect.width * dpr), H = Math.round(rect.height * dpr);
+  if (photonCv.width !== W || photonCv.height !== H) { photonCv.width = W; photonCv.height = H; }
+  const c = pctx; c.clearRect(0, 0, W, H);
+  const x = elekMesh.material.userData.x, nm = x.nm || 1239.84 / x.dE, col = lightColor(nm), e = byZ(current);
+  const top = (document.getElementById('ovTop').offsetHeight + 14) * dpr, bot = (document.getElementById('elekChips').offsetHeight + 18) * dpr;
+  const v0 = new THREE.Vector3(0, 0, 0).project(camera), cx = (v0.x * 0.5 + 0.5) * W, cy = (-v0.y * 0.5 + 0.5) * H;
+  const R = x.rv * (1.0 / camera.position.z) / Math.tan(camera.fov * Math.PI / 360) * H / 2;
+  const { th, i: ph, f, tt } = xs, phase = (now - xStart) / 1000 * 2 * Math.PI * 1.3;
+  const say = (txt, tx, ty, align = 'left', size = 10.5, color = '#dfe9f3') => { c.font = `${size * dpr}px "IBM Plex Sans", system-ui, sans-serif`; c.textAlign = align; c.lineWidth = 3 * dpr; c.strokeStyle = 'rgba(5,7,10,.85)'; c.strokeText(txt, tx, ty); c.fillStyle = color; c.fillText(txt, tx, ty); };
+  // ---- incoming wave packet (vertically polarised, travelling right) ----
+  let A = 0, xc = 0;
+  if (ph === 0 && f > 0.1) { A = 1; xc = -0.35 * W + (cx + 0.35 * W) * smooth((f - 0.1) / 0.9); }
+  if (ph === 1) { A = Math.pow(Math.cos(th / 2), 2); xc = cx + R * 0.8 * smooth(f); }
+  const xEdge = cx - 1.08 * R;
+  const lam = Math.max(34 * dpr, R * 1.1), k = 2 * Math.PI / lam, sig = lam * 1.4, amp = Math.max(18 * dpr, Math.min(R * 0.6, 46 * dpr));
+  if (A > 0.01) {
+    c.save(); c.strokeStyle = col; c.lineWidth = 2.6 * dpr; c.shadowColor = col; c.shadowBlur = 10 * dpr; c.globalAlpha = Math.min(1, A * 1.1);
+    c.beginPath();
+    for (let px = Math.max(0, xc - 3.2 * sig); px <= Math.min(xEdge, xc + 3.2 * sig); px += 2 * dpr) {
+      const env = Math.exp(-0.5 * Math.pow((px - xc) / sig, 2)), y = cy - A * amp * env * Math.cos(k * (px - xc) - phase);
+      px === Math.max(0, xc - 3.2 * sig) ? c.moveTo(px, y) : c.lineTo(px, y);
+    }
+    c.stroke(); c.restore();
+    if (ph === 0 || f < 0.35) {
+      const ratio = e.radius ? nm * 1000 / (2 * e.radius) : 0;
+      say('incoming light wave', 12 * dpr, cy - amp - 16 * dpr);
+      say(ratio ? `not to scale: really about ${(+ratio.toPrecision(2)).toLocaleString('en-US')}× wider than the atom` : 'not to scale: really thousands of times wider than the atom', 12 * dpr, cy - amp - 3 * dpr, 'left', 9.5, '#aab4c0');
+    }
+  }
+  // ---- electric field at the atom: what drives (or is made by) the sloshing ----
+  const drive = ph === 1 ? A : ph === 3 ? Math.sin(th) : 0;
+  if (drive > 0.02) {
+    const L = drive * Math.cos(phase) * R * 0.5;
+    [cx + 1.3 * R + 10 * dpr].forEach(ax => {
+      c.save(); c.strokeStyle = 'rgba(170,180,192,.35)'; c.lineWidth = dpr; c.setLineDash([3 * dpr, 3 * dpr]); c.beginPath(); c.moveTo(ax, cy - R * 0.6); c.lineTo(ax, cy + R * 0.6); c.stroke(); c.setLineDash([]);
+      c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 2.4 * dpr; c.globalAlpha = 0.95;
+      c.beginPath(); c.moveTo(ax, cy); c.lineTo(ax, cy - L); c.stroke();
+      const s = Math.sign(L) || 1, hd = Math.min(7 * dpr, Math.abs(L));
+      c.beginPath(); c.moveTo(ax, cy - L); c.lineTo(ax - 4 * dpr, cy - L + s * hd); c.lineTo(ax + 4 * dpr, cy - L + s * hd); c.closePath(); c.fill(); c.restore();
+    });
+    say('electric field', cx + 1.3 * R + 18 * dpr, cy + 4 * dpr, 'left', 9.5, '#aab4c0');
+  }
+  // ---- emitted light: wavefronts from a tiny antenna, bright sideways, dark along the slosh axis ----
+  const speed = W * 0.22, maxR = Math.hypot(W, H) * 0.6;
+  for (let n = 0; n * X_PERIOD <= X_CYCLE[3][0]; n++) {
+    const tb = X_EMIT0 + n * X_PERIOD, fb = (tb - X_EMIT0) / X_CYCLE[3][0];
+    const strength = Math.sin((0.5 - 0.5 * Math.cos(Math.PI * fb)) * Math.PI);
+    if (strength < 0.05) continue;
+    let age = tt - tb; if (age < 0) age += X_TOTAL;
+    if (age < 0 || age > 6) continue;
+    const rr = R * 0.9 + speed * age; if (rr > maxR) continue;
+    const fade = strength * (1 - rr / maxR);
+    c.save(); c.strokeStyle = col; c.lineWidth = 2.4 * dpr;
+    for (let bin = 1; bin <= 4; bin++) { // group arc pieces by brightness: a few strokes per wavefront
+      c.globalAlpha = Math.min(1, fade * bin / 4 * 1.15); c.beginPath();
+      for (let s = 0; s < 48; s++) {
+        const a0 = s / 48 * 2 * Math.PI, a1 = (s + 1) / 48 * 2 * Math.PI, b = Math.pow(Math.cos((a0 + a1) / 2), 2);
+        if (Math.min(4, Math.ceil(b * 4 - 1e-9)) !== bin || b < 0.05) continue;
+        c.moveTo(cx + rr * Math.cos(a0), cy + rr * Math.sin(a0)); c.arc(cx, cy, rr, a0, a1);
+      }
+      c.stroke();
+    }
+    c.restore();
+  }
+  // ---- energy ladder (top right) ----
+  const lw = 132 * dpr, lh = 86 * dpr, lx = W - lw - 12 * dpr, ly = top + 2 * dpr;
+  c.save(); c.fillStyle = 'rgba(5,7,10,.72)'; c.strokeStyle = '#2a3542'; c.lineWidth = dpr;
+  c.beginPath(); c.roundRect ? c.roundRect(lx, ly, lw, lh, 8 * dpr) : c.rect(lx, ly, lw, lh); c.fill(); c.stroke(); c.restore();
+  const yU = ly + 24 * dpr, yL = ly + lh - 18 * dpr, x0 = lx + 34 * dpr, x1 = lx + lw - 30 * dpr;
+  c.strokeStyle = '#cfd8e3'; c.lineWidth = 2 * dpr; [yU, yL].forEach(yy => { c.beginPath(); c.moveTo(x0, yy); c.lineTo(x1, yy); c.stroke(); });
+  say(x.to, x0 - 5 * dpr, yU + 4 * dpr, 'right', 10.5); say(x.from, x0 - 5 * dpr, yL + 4 * dpr, 'right', 10.5);
+  const dE = 1239.84 / nm; say(`ΔE = ${dE.toFixed(2)} eV`, lx + lw / 2, ly + 12 * dpr, 'center', 9.5, '#aab4c0');
+  const occ = Math.pow(Math.sin(th / 2), 2), ey = yL + (yU - yL) * occ, ex = (x0 + x1) / 2;
+  c.fillStyle = '#fcffa4'; c.beginPath(); c.arc(ex, ey, 4.5 * dpr, 0, Math.PI * 2); c.fill();
+  if (ph === 1 || ph === 3) { // a little wavy photon arrow: in from the left when absorbing, out to the right when emitting
+    const inbound = ph === 1, ya = (yU + yL) / 2, xa = inbound ? x0 + 2 * dpr : ex + 8 * dpr, xb = inbound ? ex - 8 * dpr : x1 + 22 * dpr;
+    c.save(); c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 1.6 * dpr; c.beginPath();
+    for (let px = xa; px <= xb; px += dpr) { const y = ya + 3.5 * dpr * Math.sin((px - xa) / (5 * dpr) * 2 * Math.PI - phase * 0.6); px === xa ? c.moveTo(px, y) : c.lineTo(px, y); }
+    c.stroke(); c.beginPath(); c.moveTo(xb + 5 * dpr, ya); c.lineTo(xb - 2 * dpr, ya - 4 * dpr); c.lineTo(xb - 2 * dpr, ya + 4 * dpr); c.closePath(); c.fill(); c.restore();
+  }
+  if (ph === 3 || (ph === 4)) { say('light given out: bright sideways,', lx + lw, ly + lh + 14 * dpr, 'right', 9.5, '#aab4c0'); say('dark along the slosh axis', lx + lw, ly + lh + 26 * dpr, 'right', 9.5, '#aab4c0'); }
+  // ---- spectrum strip (bottom): dark line when absorbing, bright line when emitting ----
+  const sx0 = W * 0.16, sx1 = W * 0.84, sy = H - bot - 22 * dpr, sh = 10 * dpr, nmX = v => sx0 + (v - 380) / 370 * (sx1 - sx0);
+  const mode3 = ph === 1 ? 'abs' : ph === 3 ? 'emi' : 'idle';
+  c.save(); c.globalAlpha = mode3 === 'idle' ? 0.35 : 1;
+  if (mode3 === 'emi') { c.fillStyle = '#000'; c.fillRect(sx0, sy, sx1 - sx0, sh); }
+  else { const g = c.createLinearGradient(sx0, 0, sx1, 0); for (let w = 380; w <= 750; w += 10) g.addColorStop((w - 380) / 370, nmToRGB(w)); c.fillStyle = g; c.fillRect(sx0, sy, sx1 - sx0, sh); }
+  c.strokeStyle = '#3a4350'; c.lineWidth = dpr; c.strokeRect(sx0 + .5, sy + .5, sx1 - sx0 - 1, sh - 1);
+  const inside = nm >= 380 && nm <= 750, lx2 = inside ? nmX(nm) : nm < 380 ? sx0 - 10 * dpr : sx1 + 10 * dpr;
+  if (inside && mode3 !== 'idle') { c.fillStyle = mode3 === 'abs' ? '#000' : col; if (mode3 === 'emi') { c.shadowColor = col; c.shadowBlur = 8 * dpr; } c.fillRect(lx2 - 1.5 * dpr, sy - 2 * dpr, 3 * dpr, sh + 4 * dpr); }
+  c.restore();
+  say('380 nm', sx0, sy + sh + 12 * dpr, 'left', 9, '#8a96a6'); say('750 nm', sx1, sy + sh + 12 * dpr, 'right', 9, '#8a96a6');
+  const lab = mode3 === 'abs' ? 'absorption: a dark line' : mode3 === 'emi' ? 'emission: a bright line' : 'spectrum';
+  say(`${lab} at ${Math.round(nm)} nm${inside ? '' : nm < 380 ? ' (ultraviolet, off this end ←)' : ' (infrared, off this end →)'}`, (sx0 + sx1) / 2, sy - 6 * dpr, 'center', 10, '#dfe9f3');
 }
 
 /* ---------- Nucleus: protons and neutrons, packed at true relative size ---------- */
@@ -1617,7 +1724,7 @@ function renderElekChips() {
   chipBtn(box, 'Excite', elekState.excite, () => {
     elekState.excite = !elekState.excite; xStart = performance.now();
     if (elekState.excite) { elekState.cut = false; if (root) root.rotation.set(0.22, 0.5, 0); }
-    applyElekState(); renderElekChips();
+    applyElekState(); renderElekChips(); if (!elekState.excite) photonCv.hidden = true;
     document.getElementById('wellNote').textContent = elekState.excite ? X_NOTE : NOTES.elek;
     document.getElementById('wellTag').textContent = elekState.excite ? 'ELEKTRONIUM · ONE ELECTRON, EXCITED' : TAGS.elek;
   }, 'Watch the outermost electron jump to a higher state and fall back, emitting light');
@@ -1650,6 +1757,7 @@ function applyMode() {
   }
   if (mode === 'elek' && haveGL) { if (dirty.elek) { buildElek(e); dirty.elek = false; } renderElekChips(); if (elekState.excite) { document.getElementById('wellNote').textContent = X_NOTE; document.getElementById('wellTag').textContent = 'ELEKTRONIUM · ONE ELECTRON, EXCITED'; } }
   renderXInfo();
+  if (mode !== 'elek' || !elekState.excite) photonCv.hidden = true;
   if (orbGroup) orbGroup.visible = mode === 'orb' && !orbState.whole;
   if (galleryGroup) galleryGroup.visible = mode === 'orb' && !orbState.whole;
   if (mode !== 'orb' || orbState.whole) document.getElementById('planeBox').hidden = true;
@@ -1681,6 +1789,7 @@ function loop(now) {
       if (planeState.sweep && now - lastPlane > 60) { drawPlane(); lastPlane = now; }
     }
     renderer.render(scene, camera);
+    if (mode === 'elek') drawPhotons(now);
   }
   requestAnimationFrame(loop);
 }
